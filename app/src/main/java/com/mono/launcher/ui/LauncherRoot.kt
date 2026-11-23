@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.mono.launcher.AppEntry
+import com.mono.launcher.IconPackInfo
 import com.mono.launcher.Prefs
 
 enum class Screen { HOME, DRAWER, SETTINGS }
@@ -28,11 +29,15 @@ enum class Screen { HOME, DRAWER, SETTINGS }
 fun LauncherRoot(
     apps: List<AppEntry>,
     prefs: Prefs,
+    iconPacks: List<IconPackInfo>,
+    overlayGranted: Boolean,
     homeSignal: Int,
     onLaunch: (AppEntry) -> Unit,
     onInfo: (AppEntry) -> Unit,
     onUninstall: (AppEntry) -> Unit,
     onSetDefault: () -> Unit,
+    onLockScreenChange: (Boolean) -> Unit,
+    onRequestOverlay: () -> Unit,
 ) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var menuApp by remember { mutableStateOf<AppEntry?>(null) }
@@ -80,15 +85,21 @@ fun LauncherRoot(
             exit = slideOutHorizontally { it / 4 } + fadeOut(),
         ) {
             SettingsScreen(
+                apps = apps,
                 prefs = prefs,
+                iconPacks = iconPacks,
+                overlayGranted = overlayGranted,
                 onClose = { screen = Screen.HOME },
                 onSetDefault = onSetDefault,
+                onLockScreenChange = onLockScreenChange,
+                onRequestOverlay = onRequestOverlay,
             )
         }
 
         menuApp?.let { app ->
             AppActionsSheet(
                 app = app,
+                prefs = prefs,
                 favoriteIndex = prefs.favorites.indexOf(app.key),
                 favoriteCount = prefs.favorites.size,
                 onDismiss = { menuApp = null },

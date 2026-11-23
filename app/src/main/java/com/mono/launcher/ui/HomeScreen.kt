@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -126,6 +127,68 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Shown over the system lock screen: clock + favorites. Tapping an app asks for the
+ * fingerprint / PIN first (handled by the activity), swiping up just unlocks.
+ */
+@Composable
+fun LockScreen(
+    apps: List<AppEntry>,
+    prefs: Prefs,
+    onLaunch: (AppEntry) -> Unit,
+    onUnlock: () -> Unit,
+) {
+    val favorites = remember(apps, prefs.favorites) {
+        val byKey = apps.associateBy { it.key }
+        prefs.favorites.mapNotNull { byKey[it] }
+    }
+    val unlock by rememberUpdatedState(onUnlock)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Black)
+            .pointerInput(Unit) {
+                var total = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { total = 0f },
+                    onDragEnd = { if (total < -120f) unlock() },
+                ) { _, dy -> total += dy }
+            }
+            .systemBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Clock(prefs.textSize.scale)
+        Spacer(Modifier.height(32.dp))
+        SectionLabel("Favoris")
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                favorites.isEmpty() -> Text(
+                    "Aucun favori pour l'instant.",
+                    color = Muted,
+                    fontSize = 16.sp,
+                )
+                prefs.favStyle == FavStyle.LIST -> FavoriteList(favorites, prefs, onLaunch, onLongPress = {})
+                else -> FavoriteTiles(favorites, prefs, onLaunch, onLongPress = {})
+            }
+        }
+        Text(
+            "↑  GLISSER POUR DÉVERROUILLER",
+            color = Muted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(50))
+                .clickable { unlock() }
+                .padding(vertical = 14.dp),
+        )
+    }
+}
+
 @Composable
 private fun Clock(scale: Float) {
     val now by produceState(initialValue = LocalDateTime.now()) {
@@ -183,7 +246,7 @@ private fun FavoriteList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (prefs.iconStyle != IconStyle.NONE) {
-                    AppIcon(app, prefs.iconStyle, 26.dp * scale)
+                    AppIcon(app, prefs, 26.dp * scale)
                     Spacer(Modifier.width(12.dp))
                 }
                 Text(
@@ -263,7 +326,7 @@ private fun Tile(
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         if (prefs.iconStyle != IconStyle.NONE) {
-            AppIcon(app, if (highlighted) IconStyle.MONO else prefs.iconStyle, 28.dp)
+            AppIcon(app, prefs, 28.dp, onAccent = highlighted)
         } else {
             Box(Modifier.size(8.dp).background(if (highlighted) Black else Accent, CircleShape))
         }

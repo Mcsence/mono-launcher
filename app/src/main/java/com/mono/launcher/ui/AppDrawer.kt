@@ -156,7 +156,7 @@ fun AppDrawer(
                         )
                         is DrawerRow.App -> AppRow(
                             app = row.app,
-                            iconStyle = prefs.iconStyle,
+                            prefs = prefs,
                             scale = scale,
                             isFavorite = prefs.isFavorite(row.app.key),
                             onClick = { onLaunch(row.app) },
@@ -194,7 +194,7 @@ fun AppDrawer(
 }
 
 @Composable
-private fun SearchField(
+fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     onGo: () -> Unit,
@@ -234,7 +234,7 @@ private fun SearchField(
 @Composable
 private fun AppRow(
     app: AppEntry,
-    iconStyle: IconStyle,
+    prefs: Prefs,
     scale: Float,
     isFavorite: Boolean,
     onClick: () -> Unit,
@@ -255,8 +255,8 @@ private fun AppRow(
             .padding(vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (iconStyle != IconStyle.NONE) {
-            AppIcon(app, iconStyle, 26.dp * scale)
+        if (prefs.iconStyle != IconStyle.NONE) {
+            AppIcon(app, prefs, 26.dp * scale)
             Spacer(Modifier.width(12.dp))
         }
         Text(

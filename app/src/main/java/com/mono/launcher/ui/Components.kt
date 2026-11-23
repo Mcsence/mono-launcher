@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -27,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,18 +37,66 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mono.launcher.AppEntry
+import com.mono.launcher.IconShape
 import com.mono.launcher.IconStyle
+import com.mono.launcher.Prefs
 
 private val GrayscaleFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
 
+fun IconShape.composeShape(): Shape = when (this) {
+    IconShape.SYSTEM, IconShape.CIRCLE -> CircleShape
+    IconShape.SQUIRCLE -> RoundedCornerShape(30)
+    IconShape.TEARDROP -> RoundedCornerShape(
+        topStartPercent = 50,
+        topEndPercent = 50,
+        bottomEndPercent = 12,
+        bottomStartPercent = 50,
+    )
+}
+
+/**
+ * App icon following the user's icon settings. [onAccent] = drawn on an accent-colored
+ * tile, so the icon switches to black / grayscale to stay readable.
+ */
 @Composable
-fun AppIcon(app: AppEntry, style: IconStyle, size: Dp) {
+fun AppIcon(app: AppEntry, prefs: Prefs, size: Dp, onAccent: Boolean = false) {
+    val style = prefs.iconStyle
     if (style == IconStyle.NONE) return
+    if (style == IconStyle.THEMED || app.isGlyph) {
+        val tint = if (onAccent) Black else Accent
+        Box(
+            Modifier
+                .size(size)
+                .clip(prefs.iconShape.composeShape())
+                .background(if (onAccent) Color(0x1F000000) else Raised),
+            contentAlignment = Alignment.Center,
+        ) {
+            val glyph = app.icon
+            if (app.isGlyph && glyph != null) {
+                Image(
+                    bitmap = glyph,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    colorFilter = ColorFilter.tint(tint),
+                )
+            } else {
+                // App has no one-color icon: show its initial instead.
+                Text(
+                    app.label.take(1).uppercase(),
+                    color = tint,
+                    fontSize = (size.value * 0.45f).sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        return
+    }
+    val bitmap = app.icon ?: return
     Image(
-        bitmap = app.icon,
+        bitmap = bitmap,
         contentDescription = null,
         modifier = Modifier.size(size),
-        colorFilter = if (style == IconStyle.MONO) GrayscaleFilter else null,
+        colorFilter = if (style == IconStyle.MONO || onAccent) GrayscaleFilter else null,
     )
 }
 
@@ -107,6 +158,7 @@ fun Modifier.swallowTouches(): Modifier = pointerInput(Unit) {
 @Composable
 fun AppActionsSheet(
     app: AppEntry,
+    prefs: Prefs,
     favoriteIndex: Int,
     favoriteCount: Int,
     onDismiss: () -> Unit,
@@ -138,7 +190,7 @@ fun AppActionsSheet(
                 .padding(top = 20.dp, bottom = 32.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AppIcon(app, IconStyle.COLOR, 40.dp)
+                AppIcon(app, prefs, 40.dp)
                 Spacer(Modifier.width(14.dp))
                 Text(
                     app.label,
