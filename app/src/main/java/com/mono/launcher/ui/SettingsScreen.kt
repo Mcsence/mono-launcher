@@ -1,5 +1,9 @@
 package com.mono.launcher.ui
 
+import android.app.TimePickerDialog
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
+import com.mono.launcher.ScreenTimeMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,13 +52,16 @@ fun SettingsScreen(
     iconPacks: List<IconPackInfo>,
     overlayGranted: Boolean,
     notificationAccess: Boolean,
+    usageAccess: Boolean,
     onClose: () -> Unit,
     onSetDefault: () -> Unit,
     onLockScreenChange: (Boolean) -> Unit,
     onRequestOverlay: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
+    onRequestUsageAccess: () -> Unit,
 ) {
-    var picking by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf<Picker?>(null) }
+    val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -84,7 +91,7 @@ fun SettingsScreen(
             }
 
             Section("Favoris") {
-                ActionRow("Choisir les apps favorites", "${prefs.favorites.size}") { picking = true }
+                ActionRow("Choisir les apps favorites", "${prefs.favorites.size}") { picking = Picker.FAVORITES }
                 Spacer(Modifier.height(10.dp))
                 Segmented(FavStyle.entries, prefs.favStyle, { it.label }, prefs::updateFavStyle)
             }
@@ -99,6 +106,48 @@ fun SettingsScreen(
                     Spacer(Modifier.height(10.dp))
                     ActionRow("Autoriser l'accès aux notifications", "!", highlight = true, onClick = onRequestNotificationAccess)
                     Hint("Nécessaire pour les aperçus et le lecteur. Rien ne quitte ton téléphone.")
+                }
+            }
+
+            Section("Temps d'écran") {
+                Segmented(ScreenTimeMode.entries, prefs.screenTime, { it.label }, prefs::updateScreenTime)
+                if (prefs.screenTime != ScreenTimeMode.OFF && !usageAccess) {
+                    Spacer(Modifier.height(10.dp))
+                    ActionRow("Autoriser l'accès aux données d'utilisation", "!", highlight = true, onClick = onRequestUsageAccess)
+                    Hint("Android compte le temps passé dans chaque app ; Mono l'affiche simplement.")
+                } else if (prefs.screenTime != ScreenTimeMode.OFF) {
+                    Hint("Total sous l'horloge ; « Par app » l'affiche aussi à côté de chaque app.")
+                }
+            }
+
+            Section("Mode focus") {
+                Segmented(listOf(true, false), prefs.focusEnabled, { if (it) "Programmé" else "Désactivé" }, prefs::updateFocusEnabled)
+                if (prefs.focusEnabled) {
+                    Spacer(Modifier.height(10.dp))
+                    ActionRow("Apps autorisées pendant le focus", "${prefs.focusApps.size}") { picking = Picker.FOCUS }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TimeChip("De", prefs.focusStart) { pickTime(context, prefs.focusStart, prefs::updateFocusStart) }
+                        TimeChip("à", prefs.focusEnd) { pickTime(context, prefs.focusEnd, prefs::updateFocusEnd) }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("L", "M", "M", "J", "V", "S", "D").forEachIndexed { index, letter ->
+                            val day = index + 1
+                            val on = day in prefs.focusDays
+                            Box(
+                                Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(if (on) Accent else Raised)
+                                    .clickable { prefs.toggleFocusDay(day) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(letter, color = if (on) Black else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Hint("Pendant ces heures, seules les apps autorisées sont visibles. « Sortir » sur l'accueil coupe le focus jusqu'à la fin de la plage.")
                 }
             }
 
@@ -188,9 +237,58 @@ fun SettingsScreen(
             Text("Mono", color = Muted, fontSize = 12.sp)
         }
 
-        if (picking) {
-            FavoritesPicker(apps = apps, prefs = prefs, onClose = { picking = false })
+        when (picking) {
+            Picker.FAVORITES -> AppPicker(
+                title = "Favoris",
+                apps = apps,
+                prefs = prefs,
+                selected = prefs.favorites,
+                numbered = true,
+                onToggle = prefs::toggleFavorite,
+                onClose = { picking = null },
+            )
+            Picker.FOCUS -> AppPicker(
+                title = "Apps focus",
+                apps = apps,
+                prefs = prefs,
+                selected = prefs.focusApps,
+                numbered = false,
+                onToggle = prefs::toggleFocusApp,
+                onClose = { picking = null },
+            )
+            null -> Unit
         }
+    }
+}
+
+private enum class Picker { FAVORITES, FOCUS }
+
+private fun formatMinutes(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)
+
+private fun pickTime(context: Context, current: Int, onPicked: (Int) -> Unit) {
+    TimePickerDialog(
+        context,
+        android.R.style.Theme_Material_Dialog_Alert,
+        { _, hour, minute -> onPicked(hour * 60 + minute) },
+        current / 60,
+        current % 60,
+        true,
+    ).show()
+}
+
+@Composable
+private fun TimeChip(label: String, minutes: Int, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Raised)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = Muted, fontSize = 14.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(formatMinutes(minutes), color = White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 

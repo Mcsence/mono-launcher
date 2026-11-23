@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.sp
 import com.mono.launcher.AppEntry
 import com.mono.launcher.IconStyle
 import com.mono.launcher.Prefs
+import com.mono.launcher.ScreenTime
+import com.mono.launcher.ScreenTimeMode
 import com.mono.launcher.normalize
 import kotlinx.coroutines.launch
 
@@ -58,6 +60,7 @@ private sealed interface DrawerRow {
 @Composable
 fun AppDrawer(
     apps: List<AppEntry>,
+    hiddenCount: Int,
     prefs: Prefs,
     onClose: () -> Unit,
     onLaunch: (AppEntry) -> Unit,
@@ -125,6 +128,16 @@ fun AppDrawer(
                         .clip(RoundedCornerShape(50))
                         .clickable(onClick = onClose)
                         .padding(12.dp),
+                )
+            }
+
+            if (hiddenCount > 0) {
+                Text(
+                    "Mode focus · $hiddenCount apps masquées",
+                    color = Accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 24.dp, top = 4.dp),
                 )
             }
 
@@ -275,6 +288,12 @@ private fun AppRow(
         if (isFavorite) {
             Spacer(Modifier.width(10.dp))
             Box(Modifier.size(6.dp).background(Accent, CircleShape))
+        }
+        if (prefs.screenTime == ScreenTimeMode.PER_APP) {
+            ScreenTime.today[app.component.packageName]?.let { millis ->
+                Spacer(Modifier.weight(1f))
+                Text(ScreenTime.format(millis), color = Muted, fontSize = 12.sp)
+            }
         }
     }
 }

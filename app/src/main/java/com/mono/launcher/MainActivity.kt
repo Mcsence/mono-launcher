@@ -20,7 +20,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import com.mono.launcher.ui.LauncherRoot
 import com.mono.launcher.ui.MonoTheme
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +39,7 @@ class MainActivity : ComponentActivity() {
     private val iconPacks = mutableStateOf<List<IconPackInfo>>(emptyList())
     private val overlayGranted = mutableStateOf(true)
     private val notificationAccess = mutableStateOf(true)
+    private val usageAccess = mutableStateOf(true)
     private var refreshJob: Job? = null
 
     /** Incremented when Home is pressed while we're already in front: closes drawer/settings. */
@@ -66,6 +70,20 @@ class MainActivity : ComponentActivity() {
             snapshotFlow { prefs.iconConfig() }.drop(1).collect { refresh() }
         }
 
+        // Screen time: refreshed every minute while Mono is on screen.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    if (prefs.screenTime != ScreenTimeMode.OFF && ScreenTime.hasAccess(this@MainActivity)) {
+                        ScreenTime.today = withContext(Dispatchers.Default) {
+                            runCatching { ScreenTime.compute(this@MainActivity) }.getOrDefault(emptyMap())
+                        }
+                    }
+                    delay(60_000L)
+                }
+            }
+        }
+
         setContent {
             MonoTheme(accent = Color(prefs.accent)) {
                 val shownApps = remember(apps.value, prefs.customLabels) {
@@ -77,6 +95,7 @@ class MainActivity : ComponentActivity() {
                     iconPacks = iconPacks.value,
                     overlayGranted = overlayGranted.value,
                     notificationAccess = notificationAccess.value,
+                    usageAccess = usageAccess.value,
                     homeSignal = homeSignal.intValue,
                     onLaunch = repo::launch,
                     onInfo = repo::openInfo,
@@ -89,6 +108,9 @@ class MainActivity : ComponentActivity() {
                     onRequestNotificationAccess = {
                         runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
                     },
+                    onRequestUsageAccess = {
+                        runCatching { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+                    },
                 )
             }
         }
@@ -98,6 +120,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         overlayGranted.value = Settings.canDrawOverlays(this)
         notificationAccess.value = NotificationState.hasAccess(this)
+        usageAccess.value = ScreenTime.hasAccess(this)
         if (notificationAccess.value) {
             // Make sure Android has (re)connected the listener, e.g. after an update.
             runCatching {

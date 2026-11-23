@@ -39,11 +39,19 @@ import com.mono.launcher.Prefs
 import com.mono.launcher.normalize
 
 /**
- * Full list of apps with a check per app. Checked apps show their position
- * in the favorites (1, 2, 3…); tapping toggles them.
+ * Full list of apps with a check per app; tapping toggles them. With [numbered],
+ * checked apps show their position (1, 2, 3…), otherwise a check mark.
  */
 @Composable
-fun FavoritesPicker(apps: List<AppEntry>, prefs: Prefs, onClose: () -> Unit) {
+fun AppPicker(
+    title: String,
+    apps: List<AppEntry>,
+    prefs: Prefs,
+    selected: List<String>,
+    numbered: Boolean,
+    onToggle: (String) -> Unit,
+    onClose: () -> Unit,
+) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) {
         val q = normalize(query.trim())
@@ -63,9 +71,9 @@ fun FavoritesPicker(apps: List<AppEntry>, prefs: Prefs, onClose: () -> Unit) {
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Favoris", color = White, fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp)
+            Text(title, color = White, fontSize = 32.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp)
             Text(
-                "${prefs.favorites.size}",
+                "${selected.size}",
                 color = Accent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
@@ -97,13 +105,13 @@ fun FavoritesPicker(apps: List<AppEntry>, prefs: Prefs, onClose: () -> Unit) {
             contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
         ) {
             items(filtered, key = { it.key }) { app ->
-                val position = prefs.favorites.indexOf(app.key)
-                val selected = position >= 0
+                val position = selected.indexOf(app.key)
+                val isSelected = position >= 0
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable { prefs.toggleFavorite(app.key) }
+                        .clickable { onToggle(app.key) }
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -113,7 +121,7 @@ fun FavoritesPicker(apps: List<AppEntry>, prefs: Prefs, onClose: () -> Unit) {
                     }
                     Text(
                         app.label,
-                        color = if (selected) White else Muted,
+                        color = if (isSelected) White else Muted,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -124,12 +132,17 @@ fun FavoritesPicker(apps: List<AppEntry>, prefs: Prefs, onClose: () -> Unit) {
                         Modifier
                             .size(26.dp)
                             .clip(CircleShape)
-                            .background(if (selected) Accent else Black)
-                            .then(if (selected) Modifier else Modifier.border(1.5.dp, Muted, CircleShape)),
+                            .background(if (isSelected) Accent else Black)
+                            .then(if (isSelected) Modifier else Modifier.border(1.5.dp, Muted, CircleShape)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        if (selected) {
-                            Text("${position + 1}", color = Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        if (isSelected) {
+                            Text(
+                                if (numbered) "${position + 1}" else "✓",
+                                color = Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
                         }
                     }
                 }

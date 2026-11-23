@@ -19,9 +19,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.produceState
 import com.mono.launcher.AppEntry
+import com.mono.launcher.Focus
 import com.mono.launcher.IconPackInfo
 import com.mono.launcher.Prefs
+import kotlinx.coroutines.delay
+import java.time.LocalDateTime
 
 enum class Screen { HOME, DRAWER, SETTINGS }
 
@@ -32,6 +36,7 @@ fun LauncherRoot(
     iconPacks: List<IconPackInfo>,
     overlayGranted: Boolean,
     notificationAccess: Boolean,
+    usageAccess: Boolean,
     homeSignal: Int,
     onLaunch: (AppEntry) -> Unit,
     onInfo: (AppEntry) -> Unit,
@@ -40,9 +45,22 @@ fun LauncherRoot(
     onLockScreenChange: (Boolean) -> Unit,
     onRequestOverlay: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
+    onRequestUsageAccess: () -> Unit,
 ) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var menuApp by remember { mutableStateOf<AppEntry?>(null) }
+
+    // Focus mode: re-checked every 20 s so it starts and ends on time.
+    val now by produceState(LocalDateTime.now()) {
+        while (true) {
+            delay(20_000L)
+            value = LocalDateTime.now()
+        }
+    }
+    val focusUntil = Focus.activeUntil(prefs, now)
+    val visibleApps = remember(apps, focusUntil != null, prefs.focusApps) {
+        if (focusUntil != null) apps.filter { it.key in prefs.focusApps } else apps
+    }
 
     // Pressing Home while the launcher is already visible goes back to the home screen.
     LaunchedEffect(homeSignal) {
@@ -59,8 +77,10 @@ fun LauncherRoot(
 
     Box(Modifier.fillMaxSize().background(Black)) {
         HomeScreen(
-            apps = apps,
+            apps = visibleApps,
             prefs = prefs,
+            focusUntil = focusUntil?.toLocalTime(),
+            onExitFocus = { focusUntil?.let { prefs.pauseFocusUntil(Focus.millis(it)) } },
             onOpenDrawer = { screen = Screen.DRAWER },
             onOpenSettings = { screen = Screen.SETTINGS },
             onLaunch = launch,
@@ -73,7 +93,8 @@ fun LauncherRoot(
             exit = slideOutVertically { it / 3 } + fadeOut(),
         ) {
             AppDrawer(
-                apps = apps,
+                apps = visibleApps,
+                hiddenCount = apps.size - visibleApps.size,
                 prefs = prefs,
                 onClose = { screen = Screen.HOME },
                 onLaunch = launch,
@@ -92,11 +113,13 @@ fun LauncherRoot(
                 iconPacks = iconPacks,
                 overlayGranted = overlayGranted,
                 notificationAccess = notificationAccess,
+                usageAccess = usageAccess,
                 onClose = { screen = Screen.HOME },
                 onSetDefault = onSetDefault,
                 onLockScreenChange = onLockScreenChange,
                 onRequestOverlay = onRequestOverlay,
                 onRequestNotificationAccess = onRequestNotificationAccess,
+                onRequestUsageAccess = onRequestUsageAccess,
             )
         }
 

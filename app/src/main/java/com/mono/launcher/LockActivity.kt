@@ -13,6 +13,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -57,8 +58,13 @@ class LockActivity : ComponentActivity() {
 
         setContent {
             MonoTheme(accent = Color(prefs.accent)) {
+                // In focus mode, only the work apps are shown here too.
+                val inFocus = Focus.activeUntil(prefs) != null
+                val shown = remember(apps.value, inFocus, prefs.focusApps) {
+                    if (inFocus) apps.value.filter { it.key in prefs.focusApps } else apps.value
+                }
                 LockScreen(
-                    apps = apps.value,
+                    apps = shown,
                     prefs = prefs,
                     onLaunch = { app -> unlockThen { repo.launch(app) } },
                     onUnlock = { unlockThen { } },

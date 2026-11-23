@@ -51,6 +51,66 @@ class Prefs private constructor(context: Context) {
     var showMusic by mutableStateOf(sp.getBoolean(K_SHOW_MUSIC, true))
         private set
 
+    var screenTime by mutableStateOf(enumPref(K_SCREEN_TIME, ScreenTimeMode.OFF))
+        private set
+
+    var focusEnabled by mutableStateOf(sp.getBoolean(K_FOCUS, false))
+        private set
+    /** Apps that stay visible during focus mode. */
+    var focusApps by mutableStateOf(
+        sp.getString(K_FOCUS_APPS, "").orEmpty().split('\n').filter { it.isNotBlank() }
+    )
+        private set
+    /** Minutes since midnight. */
+    var focusStart by mutableStateOf(sp.getInt(K_FOCUS_START, 9 * 60))
+        private set
+    var focusEnd by mutableStateOf(sp.getInt(K_FOCUS_END, 18 * 60))
+        private set
+    /** Days of week, 1 = Monday … 7 = Sunday. */
+    var focusDays by mutableStateOf(
+        sp.getString(K_FOCUS_DAYS, "1,2,3,4,5").orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toSet()
+    )
+        private set
+    /** Focus is ignored until this time (epoch ms), set by "Sortir". */
+    var focusPausedUntil by mutableStateOf(sp.getLong(K_FOCUS_PAUSED, 0L))
+        private set
+
+    fun updateScreenTime(value: ScreenTimeMode) {
+        screenTime = value
+        sp.edit().putString(K_SCREEN_TIME, value.name).apply()
+    }
+
+    fun updateFocusEnabled(value: Boolean) {
+        focusEnabled = value
+        focusPausedUntil = 0L
+        sp.edit().putBoolean(K_FOCUS, value).putLong(K_FOCUS_PAUSED, 0L).apply()
+    }
+
+    fun toggleFocusApp(key: String) {
+        focusApps = if (key in focusApps) focusApps - key else focusApps + key
+        sp.edit().putString(K_FOCUS_APPS, focusApps.joinToString("\n")).apply()
+    }
+
+    fun updateFocusStart(minutes: Int) {
+        focusStart = minutes
+        sp.edit().putInt(K_FOCUS_START, minutes).apply()
+    }
+
+    fun updateFocusEnd(minutes: Int) {
+        focusEnd = minutes
+        sp.edit().putInt(K_FOCUS_END, minutes).apply()
+    }
+
+    fun toggleFocusDay(day: Int) {
+        focusDays = if (day in focusDays) focusDays - day else focusDays + day
+        sp.edit().putString(K_FOCUS_DAYS, focusDays.sorted().joinToString(",")).apply()
+    }
+
+    fun pauseFocusUntil(epochMillis: Long) {
+        focusPausedUntil = epochMillis
+        sp.edit().putLong(K_FOCUS_PAUSED, epochMillis).apply()
+    }
+
     /** User-chosen names, by app key. */
     var customLabels by mutableStateOf(parseLabels(sp.getString(K_LABELS, null)))
         private set
@@ -165,6 +225,13 @@ class Prefs private constructor(context: Context) {
         private const val K_SHOW_NOTIFICATIONS = "show_notifications"
         private const val K_SHOW_MUSIC = "show_music"
         private const val K_LABELS = "custom_labels"
+        private const val K_SCREEN_TIME = "screen_time"
+        private const val K_FOCUS = "focus_enabled"
+        private const val K_FOCUS_APPS = "focus_apps"
+        private const val K_FOCUS_START = "focus_start"
+        private const val K_FOCUS_END = "focus_end"
+        private const val K_FOCUS_DAYS = "focus_days"
+        private const val K_FOCUS_PAUSED = "focus_paused_until"
         private const val LABEL_SEP = "\u001F"
 
         @Volatile

@@ -42,8 +42,11 @@ import com.mono.launcher.FavStyle
 import com.mono.launcher.IconStyle
 import com.mono.launcher.NotificationState
 import com.mono.launcher.Prefs
+import com.mono.launcher.ScreenTime
+import com.mono.launcher.ScreenTimeMode
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -51,12 +54,17 @@ import java.util.Locale
 fun HomeScreen(
     apps: List<AppEntry>,
     prefs: Prefs,
+    focusUntil: LocalTime?,
+    onExitFocus: () -> Unit,
     onOpenDrawer: () -> Unit,
     onOpenSettings: () -> Unit,
     onLaunch: (AppEntry) -> Unit,
     onLongPress: (AppEntry) -> Unit,
 ) {
-    val favorites = rememberFavorites(apps, prefs)
+    val favorites = rememberFavorites(apps, prefs).ifEmpty {
+        // In focus mode with no favorite among the work apps, show the work apps.
+        if (focusUntil != null) apps.take(8) else emptyList()
+    }
     val openDrawer by rememberUpdatedState(onOpenDrawer)
     val media = NotificationState.media
 
@@ -77,16 +85,26 @@ fun HomeScreen(
     ) {
         if (prefs.showClock) {
             Clock(prefs.textSize.scale)
-            Spacer(Modifier.height(32.dp))
-        } else {
-            Spacer(Modifier.height(24.dp))
+        }
+        ScreenTimeTotal(prefs)
+        Spacer(Modifier.height(if (prefs.showClock) 28.dp else 24.dp))
+
+        if (focusUntil != null) {
+            FocusBanner(focusUntil, onExitFocus)
+            Spacer(Modifier.height(20.dp))
         }
 
-        SectionLabel("Favoris")
+        SectionLabel(if (focusUntil != null) "Focus" else "Favoris")
         Spacer(Modifier.height(16.dp))
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
+                favorites.isEmpty() && focusUntil != null -> Text(
+                    "Aucune app autorisée. Ajoute-en dans Réglages › Mode focus.",
+                    color = Muted,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                )
                 favorites.isEmpty() -> Text(
                     "Va dans Réglages › Choisir les apps favorites\npour les épingler ici.",
                     color = Muted,
@@ -192,6 +210,61 @@ fun LockScreen(
     }
 }
 
+/** "Écran aujourd'hui · 2 h 14" under the clock. */
+@Composable
+private fun ScreenTimeTotal(prefs: Prefs) {
+    if (prefs.screenTime == ScreenTimeMode.OFF) return
+    val total = ScreenTime.total
+    if (total < 60_000) return
+    Text(
+        "Écran aujourd'hui · ${ScreenTime.format(total)}",
+        color = Muted,
+        fontSize = (13 * prefs.textSize.scale).sp,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+}
+
+@Composable
+private fun FocusBanner(until: LocalTime, onExit: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Raised)
+            .padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).background(Accent, CircleShape))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "MODE FOCUS · jusqu'à ${until.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+            color = White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "SORTIR",
+            color = Black,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Accent)
+                .clickable(onClick = onExit)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun appTime(app: AppEntry, prefs: Prefs): String? {
+    if (prefs.screenTime != ScreenTimeMode.PER_APP) return null
+    return ScreenTime.today[app.component.packageName]?.let(ScreenTime::format)
+}
+
 @Composable
 private fun rememberFavorites(apps: List<AppEntry>, prefs: Prefs): List<AppEntry> =
     remember(apps, prefs.favorites) {
@@ -281,6 +354,10 @@ private fun FavoriteList(
                         if (notification != null && !showPreviews) {
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.size(7.dp).background(Accent, CircleShape))
+                        }
+                        appTime(app, prefs)?.let { time ->
+                            Spacer(Modifier.width(10.dp))
+                            Text(time, color = Muted, fontSize = (12 * scale).sp)
                         }
                     }
                     if (notification != null && showPreviews) {
