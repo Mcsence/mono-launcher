@@ -1,0 +1,12 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+.kotlin/
+
+# Built APKs and signing keys never go into git
+*.apk
+*.jks
+*.keystore
