@@ -111,6 +111,36 @@ class Prefs private constructor(context: Context) {
         sp.edit().putLong(K_FOCUS_PAUSED, epochMillis).apply()
     }
 
+    /** Gesture targets: [Gestures.NONE], [Gestures.CAMERA], [Gestures.MESSAGES] or an app key. */
+    var swipeLeft by mutableStateOf(sp.getString(K_SWIPE_LEFT, Gestures.MESSAGES).orEmpty())
+        private set
+    var swipeRight by mutableStateOf(sp.getString(K_SWIPE_RIGHT, Gestures.CAMERA).orEmpty())
+        private set
+    var swipeDownNotifications by mutableStateOf(sp.getBoolean(K_SWIPE_DOWN, true))
+        private set
+    var doubleTapLock by mutableStateOf(sp.getBoolean(K_DOUBLE_TAP, false))
+        private set
+
+    fun updateSwipeLeft(target: String) {
+        swipeLeft = target
+        sp.edit().putString(K_SWIPE_LEFT, target).apply()
+    }
+
+    fun updateSwipeRight(target: String) {
+        swipeRight = target
+        sp.edit().putString(K_SWIPE_RIGHT, target).apply()
+    }
+
+    fun updateSwipeDownNotifications(value: Boolean) {
+        swipeDownNotifications = value
+        sp.edit().putBoolean(K_SWIPE_DOWN, value).apply()
+    }
+
+    fun updateDoubleTapLock(value: Boolean) {
+        doubleTapLock = value
+        sp.edit().putBoolean(K_DOUBLE_TAP, value).apply()
+    }
+
     /** User-chosen names, by app key. */
     var customLabels by mutableStateOf(parseLabels(sp.getString(K_LABELS, null)))
         private set
@@ -226,6 +256,10 @@ class Prefs private constructor(context: Context) {
         private const val K_SHOW_MUSIC = "show_music"
         private const val K_LABELS = "custom_labels"
         private const val K_SCREEN_TIME = "screen_time"
+        private const val K_SWIPE_LEFT = "swipe_left"
+        private const val K_SWIPE_RIGHT = "swipe_right"
+        private const val K_SWIPE_DOWN = "swipe_down_notifications"
+        private const val K_DOUBLE_TAP = "double_tap_lock"
         private const val K_FOCUS = "focus_enabled"
         private const val K_FOCUS_APPS = "focus_apps"
         private const val K_FOCUS_START = "focus_start"

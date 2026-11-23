@@ -3,6 +3,7 @@ package com.mono.launcher.ui
 import android.app.TimePickerDialog
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import com.mono.launcher.Gestures
 import com.mono.launcher.ScreenTimeMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -53,6 +54,8 @@ fun SettingsScreen(
     overlayGranted: Boolean,
     notificationAccess: Boolean,
     usageAccess: Boolean,
+    accessibilityEnabled: Boolean,
+    onRequestAccessibility: () -> Unit,
     onClose: () -> Unit,
     onSetDefault: () -> Unit,
     onLockScreenChange: (Boolean) -> Unit,
@@ -107,6 +110,29 @@ fun SettingsScreen(
                     ActionRow("Autoriser l'accès aux notifications", "!", highlight = true, onClick = onRequestNotificationAccess)
                     Hint("Nécessaire pour les aperçus et le lecteur. Rien ne quitte ton téléphone.")
                 }
+            }
+
+            Section("Gestes") {
+                GestureRow("Glisser vers la droite", Gestures.label(prefs.swipeRight, apps)) { picking = Picker.SWIPE_RIGHT }
+                Spacer(Modifier.height(8.dp))
+                GestureRow("Glisser vers la gauche", Gestures.label(prefs.swipeLeft, apps)) { picking = Picker.SWIPE_LEFT }
+                Spacer(Modifier.height(14.dp))
+                Text("Glisser vers le bas", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Segmented(listOf(true, false), prefs.swipeDownNotifications, { if (it) "Notifications" else "Rien" }, prefs::updateSwipeDownNotifications)
+                Spacer(Modifier.height(14.dp))
+                Text("Double-tap sur l'accueil", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Segmented(listOf(true, false), prefs.doubleTapLock, { if (it) "Éteindre l'écran" else "Rien" }, prefs::updateDoubleTapLock)
+                if (prefs.doubleTapLock && !accessibilityEnabled) {
+                    Spacer(Modifier.height(10.dp))
+                    ActionRow("Activer « Mono : gestes » dans l'accessibilité", "!", highlight = true, onClick = onRequestAccessibility)
+                    Hint(
+                        "Android exige un service d'accessibilité pour éteindre l'écran ; Mono ne lit rien à l'écran. " +
+                            "Si l'option est grisée : Paramètres › Applications › Mono › ⋮ › « Autoriser les paramètres restreints »."
+                    )
+                }
+                Hint("Glisse depuis le milieu de l'écran : depuis les bords, Android fait « retour ».")
             }
 
             Section("Temps d'écran") {
@@ -256,12 +282,46 @@ fun SettingsScreen(
                 onToggle = prefs::toggleFocusApp,
                 onClose = { picking = null },
             )
+            Picker.SWIPE_RIGHT -> GestureTargetPicker(
+                title = "Glisser à droite",
+                apps = apps,
+                prefs = prefs,
+                current = prefs.swipeRight,
+                onPick = prefs::updateSwipeRight,
+                onClose = { picking = null },
+            )
+            Picker.SWIPE_LEFT -> GestureTargetPicker(
+                title = "Glisser à gauche",
+                apps = apps,
+                prefs = prefs,
+                current = prefs.swipeLeft,
+                onPick = prefs::updateSwipeLeft,
+                onClose = { picking = null },
+            )
             null -> Unit
         }
     }
 }
 
-private enum class Picker { FAVORITES, FOCUS }
+private enum class Picker { FAVORITES, FOCUS, SWIPE_LEFT, SWIPE_RIGHT }
+
+@Composable
+private fun GestureRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Raised)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text(value, color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        Text("›", color = Muted, fontSize = 22.sp)
+    }
+}
 
 private fun formatMinutes(minutes: Int) = "%02d:%02d".format(minutes / 60, minutes % 60)
 

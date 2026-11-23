@@ -4,7 +4,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import kotlin.math.abs
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -60,25 +63,48 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onLaunch: (AppEntry) -> Unit,
     onLongPress: (AppEntry) -> Unit,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit,
+    onSwipeDown: () -> Unit,
+    onDoubleTap: () -> Unit,
 ) {
     val favorites = rememberFavorites(apps, prefs).ifEmpty {
         // In focus mode with no favorite among the work apps, show the work apps.
         if (focusUntil != null) apps.take(8) else emptyList()
     }
     val openDrawer by rememberUpdatedState(onOpenDrawer)
+    val swipeLeft by rememberUpdatedState(onSwipeLeft)
+    val swipeRight by rememberUpdatedState(onSwipeRight)
+    val swipeDown by rememberUpdatedState(onSwipeDown)
+    val doubleTap by rememberUpdatedState(onDoubleTap)
     val media = NotificationState.media
 
     Column(
         Modifier
             .fillMaxSize()
             .background(Black)
-            // Swipe up anywhere to open the app drawer.
+            // Swipes anywhere: up = app drawer, down = notifications, left / right = chosen apps.
             .pointerInput(Unit) {
-                var total = 0f
-                detectVerticalDragGestures(
-                    onDragStart = { total = 0f },
-                    onDragEnd = { if (total < -120f) openDrawer() },
-                ) { _, dy -> total += dy }
+                var dx = 0f
+                var dy = 0f
+                val threshold = 60.dp.toPx()
+                detectDragGestures(
+                    onDragStart = { dx = 0f; dy = 0f },
+                    onDragEnd = {
+                        if (abs(dy) > abs(dx)) {
+                            if (dy < -threshold) openDrawer() else if (dy > threshold) swipeDown()
+                        } else {
+                            if (dx > threshold) swipeRight() else if (dx < -threshold) swipeLeft()
+                        }
+                    },
+                ) { _, amount ->
+                    dx += amount.x
+                    dy += amount.y
+                }
+            }
+            // Double-tap on an empty spot.
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { doubleTap() })
             }
             .systemBarsPadding()
             .padding(horizontal = 24.dp, vertical = 16.dp)

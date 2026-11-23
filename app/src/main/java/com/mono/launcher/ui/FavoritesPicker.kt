@@ -34,9 +34,109 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mono.launcher.AppEntry
+import com.mono.launcher.Gestures
 import com.mono.launcher.IconStyle
 import com.mono.launcher.Prefs
 import com.mono.launcher.normalize
+
+/** Single choice for a swipe: nothing, camera, messages, or any app. */
+@Composable
+fun GestureTargetPicker(
+    title: String,
+    apps: List<AppEntry>,
+    prefs: Prefs,
+    current: String,
+    onPick: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(apps, query) {
+        val q = normalize(query.trim())
+        if (q.isEmpty()) apps else apps.filter { normalize(it.label).contains(q) }
+    }
+    val specials = listOf(Gestures.NONE, Gestures.CAMERA, Gestures.MESSAGES)
+    BackHandler(onBack = onClose)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Black)
+            .swallowTouches()
+            .systemBarsPadding()
+            .imePadding()
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, color = White, fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = (-1).sp)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "FERMER",
+                color = Muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable(onClick = onClose)
+                    .padding(12.dp),
+            )
+        }
+        SearchField(
+            value = query,
+            onValueChange = { query = it },
+            onGo = {},
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+        )
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 32.dp),
+        ) {
+            if (query.isBlank()) {
+                items(specials, key = { "special:$it" }) { target ->
+                    TargetRow(Gestures.label(target, apps), selected = target == current, app = null, prefs = prefs) {
+                        onPick(target)
+                        onClose()
+                    }
+                }
+            }
+            items(filtered, key = { it.key }) { app ->
+                TargetRow(app.label, selected = app.key == current, app = app, prefs = prefs) {
+                    onPick(app.key)
+                    onClose()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TargetRow(label: String, selected: Boolean, app: AppEntry?, prefs: Prefs, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (app != null && prefs.iconStyle != IconStyle.NONE) {
+            AppIcon(app, prefs, 26.dp)
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(
+            label,
+            color = if (selected) Accent else White,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) Box(Modifier.size(8.dp).background(Accent, CircleShape))
+    }
+}
 
 /**
  * Full list of apps with a check per app; tapping toggles them. With [numbered],

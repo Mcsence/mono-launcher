@@ -21,7 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.produceState
 import com.mono.launcher.AppEntry
+import androidx.compose.ui.platform.LocalContext
 import com.mono.launcher.Focus
+import com.mono.launcher.Gestures
 import com.mono.launcher.IconPackInfo
 import com.mono.launcher.Prefs
 import kotlinx.coroutines.delay
@@ -37,6 +39,7 @@ fun LauncherRoot(
     overlayGranted: Boolean,
     notificationAccess: Boolean,
     usageAccess: Boolean,
+    accessibilityEnabled: Boolean,
     homeSignal: Int,
     onLaunch: (AppEntry) -> Unit,
     onInfo: (AppEntry) -> Unit,
@@ -46,9 +49,11 @@ fun LauncherRoot(
     onRequestOverlay: () -> Unit,
     onRequestNotificationAccess: () -> Unit,
     onRequestUsageAccess: () -> Unit,
+    onRequestAccessibility: () -> Unit,
 ) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var menuApp by remember { mutableStateOf<AppEntry?>(null) }
+    val context = LocalContext.current
 
     // Focus mode: re-checked every 20 s so it starts and ends on time.
     val now by produceState(LocalDateTime.now()) {
@@ -85,6 +90,10 @@ fun LauncherRoot(
             onOpenSettings = { screen = Screen.SETTINGS },
             onLaunch = launch,
             onLongPress = { menuApp = it },
+            onSwipeLeft = { Gestures.run(context, prefs.swipeLeft, apps, launch) },
+            onSwipeRight = { Gestures.run(context, prefs.swipeRight, apps, launch) },
+            onSwipeDown = { if (prefs.swipeDownNotifications) Gestures.openNotifications(context) },
+            onDoubleTap = { if (prefs.doubleTapLock) Gestures.lockScreen() },
         )
 
         AnimatedVisibility(
@@ -114,6 +123,8 @@ fun LauncherRoot(
                 overlayGranted = overlayGranted,
                 notificationAccess = notificationAccess,
                 usageAccess = usageAccess,
+                accessibilityEnabled = accessibilityEnabled,
+                onRequestAccessibility = onRequestAccessibility,
                 onClose = { screen = Screen.HOME },
                 onSetDefault = onSetDefault,
                 onLockScreenChange = onLockScreenChange,

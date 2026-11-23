@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private val overlayGranted = mutableStateOf(true)
     private val notificationAccess = mutableStateOf(true)
     private val usageAccess = mutableStateOf(true)
+    private val accessibilityEnabled = mutableStateOf(false)
     private var refreshJob: Job? = null
 
     /** Incremented when Home is pressed while we're already in front: closes drawer/settings. */
@@ -96,6 +97,10 @@ class MainActivity : ComponentActivity() {
                     overlayGranted = overlayGranted.value,
                     notificationAccess = notificationAccess.value,
                     usageAccess = usageAccess.value,
+                    accessibilityEnabled = accessibilityEnabled.value,
+                    onRequestAccessibility = {
+                        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                    },
                     homeSignal = homeSignal.intValue,
                     onLaunch = repo::launch,
                     onInfo = repo::openInfo,
@@ -121,6 +126,7 @@ class MainActivity : ComponentActivity() {
         overlayGranted.value = Settings.canDrawOverlays(this)
         notificationAccess.value = NotificationState.hasAccess(this)
         usageAccess.value = ScreenTime.hasAccess(this)
+        accessibilityEnabled.value = MonoAccessibilityService.isEnabled(this)
         if (notificationAccess.value) {
             // Make sure Android has (re)connected the listener, e.g. after an update.
             runCatching {
