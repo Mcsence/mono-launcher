@@ -37,8 +37,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mono.launcher.AppEntry
+import com.mono.launcher.AppNotification
 import com.mono.launcher.FavStyle
 import com.mono.launcher.IconStyle
+import com.mono.launcher.NotificationState
 import com.mono.launcher.Prefs
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -54,11 +56,9 @@ fun HomeScreen(
     onLaunch: (AppEntry) -> Unit,
     onLongPress: (AppEntry) -> Unit,
 ) {
-    val favorites = remember(apps, prefs.favorites) {
-        val byKey = apps.associateBy { it.key }
-        prefs.favorites.mapNotNull { byKey[it] }
-    }
+    val favorites = rememberFavorites(apps, prefs)
     val openDrawer by rememberUpdatedState(onOpenDrawer)
+    val media = NotificationState.media
 
     Column(
         Modifier
@@ -88,14 +88,19 @@ fun HomeScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 favorites.isEmpty() -> Text(
-                    "Glisse vers le haut, puis appuie longuement\nsur une app pour l'épingler ici.",
+                    "Va dans Réglages › Choisir les apps favorites\npour les épingler ici.",
                     color = Muted,
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
                 )
-                prefs.favStyle == FavStyle.LIST -> FavoriteList(favorites, prefs, onLaunch, onLongPress)
+                prefs.favStyle == FavStyle.LIST ->
+                    FavoriteList(favorites, prefs, showPreviews = true, onLaunch, onLongPress)
                 else -> FavoriteTiles(favorites, prefs, onLaunch, onLongPress)
             }
+        }
+
+        if (prefs.showMusic && media != null) {
+            MusicPlayer(media, Modifier.padding(top = 12.dp))
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -128,8 +133,8 @@ fun HomeScreen(
 }
 
 /**
- * Shown over the system lock screen: clock + favorites. Tapping an app asks for the
- * fingerprint / PIN first (handled by the activity), swiping up just unlocks.
+ * Shown over the system lock screen: clock, favorites and music. Notification text is
+ * not shown here (only a dot) so messages stay private while the phone is locked.
  */
 @Composable
 fun LockScreen(
@@ -138,11 +143,9 @@ fun LockScreen(
     onLaunch: (AppEntry) -> Unit,
     onUnlock: () -> Unit,
 ) {
-    val favorites = remember(apps, prefs.favorites) {
-        val byKey = apps.associateBy { it.key }
-        prefs.favorites.mapNotNull { byKey[it] }
-    }
+    val favorites = rememberFavorites(apps, prefs)
     val unlock by rememberUpdatedState(onUnlock)
+    val media = NotificationState.media
 
     Column(
         Modifier
@@ -164,14 +167,14 @@ fun LockScreen(
         Spacer(Modifier.height(16.dp))
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                favorites.isEmpty() -> Text(
-                    "Aucun favori pour l'instant.",
-                    color = Muted,
-                    fontSize = 16.sp,
-                )
-                prefs.favStyle == FavStyle.LIST -> FavoriteList(favorites, prefs, onLaunch, onLongPress = {})
+                favorites.isEmpty() -> Text("Aucun favori pour l'instant.", color = Muted, fontSize = 16.sp)
+                prefs.favStyle == FavStyle.LIST ->
+                    FavoriteList(favorites, prefs, showPreviews = false, onLaunch, onLongPress = {})
                 else -> FavoriteTiles(favorites, prefs, onLaunch, onLongPress = {})
             }
+        }
+        if (prefs.showMusic && media != null) {
+            MusicPlayer(media, Modifier.padding(top = 12.dp))
         }
         Text(
             "↑  GLISSER POUR DÉVERROUILLER",
@@ -188,6 +191,17 @@ fun LockScreen(
         )
     }
 }
+
+@Composable
+private fun rememberFavorites(apps: List<AppEntry>, prefs: Prefs): List<AppEntry> =
+    remember(apps, prefs.favorites) {
+        val byKey = apps.associateBy { it.key }
+        prefs.favorites.mapNotNull { byKey[it] }
+    }
+
+@Composable
+private fun notificationFor(app: AppEntry, prefs: Prefs): AppNotification? =
+    if (prefs.showNotifications) NotificationState.byPackage[app.component.packageName] else null
 
 @Composable
 private fun Clock(scale: Float) {
@@ -219,12 +233,13 @@ private fun Clock(scale: Float) {
     }
 }
 
-/** Big bold text list, one favorite per line. */
+/** Big bold text list, one favorite per line, with the latest notification underneath. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FavoriteList(
     favorites: List<AppEntry>,
     prefs: Prefs,
+    showPreviews: Boolean,
     onLaunch: (AppEntry) -> Unit,
     onLongPress: (AppEntry) -> Unit,
 ) {
@@ -233,6 +248,7 @@ private fun FavoriteList(
         favorites.forEach { app ->
             val interaction = remember { MutableInteractionSource() }
             val pressed by interaction.collectIsPressedAsState()
+            val notification = notificationFor(app, prefs)
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -249,17 +265,64 @@ private fun FavoriteList(
                     AppIcon(app, prefs, 26.dp * scale)
                     Spacer(Modifier.width(12.dp))
                 }
-                Text(
-                    app.label,
-                    color = if (pressed) Accent else White,
-                    fontSize = (28 * scale).sp,
-                    lineHeight = (32 * scale).sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = (-1).sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(Modifier.weight(1f, fill = false)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            app.label,
+                            color = if (pressed) Accent else White,
+                            fontSize = (28 * scale).sp,
+                            lineHeight = (32 * scale).sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = (-1).sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (notification != null && !showPreviews) {
+                            Spacer(Modifier.width(8.dp))
+                            Box(Modifier.size(7.dp).background(Accent, CircleShape))
+                        }
+                    }
+                    if (notification != null && showPreviews) {
+                        NotificationPreview(notification, scale, onClick = {
+                            if (!NotificationState.open(notification)) onLaunch(app)
+                        })
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPreview(notification: AppNotification, scale: Float, onClick: () -> Unit) {
+    val text = buildString {
+        append(notification.title)
+        if (notification.text.isNotBlank()) {
+            if (isNotEmpty()) append(" · ")
+            append(notification.text)
+        }
+    }
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).background(Accent, CircleShape))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text,
+            color = Muted,
+            fontSize = (13 * scale).sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (notification.count > 1) {
+            Spacer(Modifier.width(6.dp))
+            Text("+${notification.count - 1}", color = Accent, fontSize = (12 * scale).sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -304,6 +367,7 @@ private fun Tile(
     val scale = prefs.textSize.scale
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val notification = notificationFor(app, prefs)
     val background = when {
         highlighted -> Accent
         pressed -> RaisedPressed
@@ -325,10 +389,29 @@ private fun Tile(
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        if (prefs.iconStyle != IconStyle.NONE) {
-            AppIcon(app, prefs, 28.dp, onAccent = highlighted)
-        } else {
-            Box(Modifier.size(8.dp).background(if (highlighted) Black else Accent, CircleShape))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (prefs.iconStyle != IconStyle.NONE) {
+                AppIcon(app, prefs, 28.dp, onAccent = highlighted)
+            } else {
+                Box(Modifier.size(8.dp).background(if (highlighted) Black else Accent, CircleShape))
+            }
+            Spacer(Modifier.weight(1f))
+            if (notification != null) {
+                Box(
+                    Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (highlighted) Black else Accent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "${notification.count.coerceAtMost(9)}",
+                        color = if (highlighted) Accent else Black,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
         Text(
             app.label,

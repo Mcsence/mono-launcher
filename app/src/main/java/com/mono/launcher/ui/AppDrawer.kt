@@ -66,7 +66,11 @@ fun AppDrawer(
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) {
         val q = normalize(query.trim())
-        if (q.isEmpty()) apps else apps.filter { normalize(it.label).contains(q) }
+        if (q.isEmpty()) {
+            apps
+        } else {
+            apps.filter { normalize(it.label).contains(q) || normalize(it.originalLabel).contains(q) }
+        }
     }
     // Flat list: letter header followed by its apps (apps are already sorted).
     val rows = remember(filtered) {

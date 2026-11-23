@@ -31,6 +31,7 @@ fun LauncherRoot(
     prefs: Prefs,
     iconPacks: List<IconPackInfo>,
     overlayGranted: Boolean,
+    notificationAccess: Boolean,
     homeSignal: Int,
     onLaunch: (AppEntry) -> Unit,
     onInfo: (AppEntry) -> Unit,
@@ -38,6 +39,7 @@ fun LauncherRoot(
     onSetDefault: () -> Unit,
     onLockScreenChange: (Boolean) -> Unit,
     onRequestOverlay: () -> Unit,
+    onRequestNotificationAccess: () -> Unit,
 ) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var menuApp by remember { mutableStateOf<AppEntry?>(null) }
@@ -89,10 +91,12 @@ fun LauncherRoot(
                 prefs = prefs,
                 iconPacks = iconPacks,
                 overlayGranted = overlayGranted,
+                notificationAccess = notificationAccess,
                 onClose = { screen = Screen.HOME },
                 onSetDefault = onSetDefault,
                 onLockScreenChange = onLockScreenChange,
                 onRequestOverlay = onRequestOverlay,
+                onRequestNotificationAccess = onRequestNotificationAccess,
             )
         }
 
@@ -114,6 +118,10 @@ fun LauncherRoot(
                 },
                 onUninstall = {
                     onUninstall(app)
+                    menuApp = null
+                },
+                onRename = { name ->
+                    prefs.setLabel(app.key, name?.takeIf { it.trim() != app.originalLabel })
                     menuApp = null
                 },
             )

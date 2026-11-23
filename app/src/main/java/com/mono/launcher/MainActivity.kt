@@ -1,7 +1,10 @@
 package com.mono.launcher
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
+import android.service.notification.NotificationListenerService
+import androidx.compose.runtime.remember
 import android.content.pm.LauncherApps
 import android.net.Uri
 import android.os.Build
@@ -32,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private val apps = mutableStateOf<List<AppEntry>>(emptyList())
     private val iconPacks = mutableStateOf<List<IconPackInfo>>(emptyList())
     private val overlayGranted = mutableStateOf(true)
+    private val notificationAccess = mutableStateOf(true)
     private var refreshJob: Job? = null
 
     /** Incremented when Home is pressed while we're already in front: closes drawer/settings. */
@@ -64,11 +68,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MonoTheme(accent = Color(prefs.accent)) {
+                val shownApps = remember(apps.value, prefs.customLabels) {
+                    applyLabels(apps.value, prefs.customLabels)
+                }
                 LauncherRoot(
-                    apps = apps.value,
+                    apps = shownApps,
                     prefs = prefs,
                     iconPacks = iconPacks.value,
                     overlayGranted = overlayGranted.value,
+                    notificationAccess = notificationAccess.value,
                     homeSignal = homeSignal.intValue,
                     onLaunch = repo::launch,
                     onInfo = repo::openInfo,
@@ -78,6 +86,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onLockScreenChange = ::setLockScreen,
                     onRequestOverlay = ::requestOverlay,
+                    onRequestNotificationAccess = {
+                        runCatching { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                    },
                 )
             }
         }
@@ -86,6 +97,13 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         overlayGranted.value = Settings.canDrawOverlays(this)
+        notificationAccess.value = NotificationState.hasAccess(this)
+        if (notificationAccess.value) {
+            // Make sure Android has (re)connected the listener, e.g. after an update.
+            runCatching {
+                NotificationListenerService.requestRebind(ComponentName(this, NotifService::class.java))
+            }
+        }
         if (prefs.lockScreen) LockService.start(this)
         refresh()
     }

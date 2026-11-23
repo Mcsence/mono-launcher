@@ -22,7 +22,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -166,8 +179,13 @@ fun AppActionsSheet(
     onMove: (Int) -> Unit,
     onInfo: () -> Unit,
     onUninstall: () -> Unit,
+    onRename: (String?) -> Unit,
 ) {
     val isFavorite = favoriteIndex >= 0
+    var renaming by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf(app.label) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(renaming) { if (renaming) runCatching { focus.requestFocus() } }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -201,18 +219,63 @@ fun AppActionsSheet(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (app.label != app.originalLabel) {
+                Text(app.originalLabel, color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+            }
             Spacer(Modifier.height(16.dp))
-            SheetAction(
-                if (isFavorite) "Retirer des favoris" else "Ajouter aux favoris",
-                highlight = true,
-                onClick = onToggleFavorite,
-            )
-            if (isFavorite && favoriteIndex > 0) SheetAction("Monter", onClick = { onMove(-1) })
-            if (isFavorite && favoriteIndex < favoriteCount - 1) SheetAction("Descendre", onClick = { onMove(1) })
-            SheetAction("Infos sur l'app", onClick = onInfo)
-            SheetAction("Désinstaller", onClick = onUninstall)
+            if (renaming) {
+                BasicTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                    cursorBrush = SolidColor(Accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onRename(newName) }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focus)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Raised)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PillButton("Enregistrer", filled = true) { onRename(newName) }
+                    if (app.label != app.originalLabel) {
+                        PillButton("Nom d'origine", filled = false) { onRename(null) }
+                    }
+                    PillButton("Annuler", filled = false) { renaming = false }
+                }
+            } else {
+                SheetAction(
+                    if (isFavorite) "Retirer des favoris" else "Ajouter aux favoris",
+                    highlight = true,
+                    onClick = onToggleFavorite,
+                )
+                if (isFavorite && favoriteIndex > 0) SheetAction("Monter", onClick = { onMove(-1) })
+                if (isFavorite && favoriteIndex < favoriteCount - 1) SheetAction("Descendre", onClick = { onMove(1) })
+                SheetAction("Renommer", onClick = { renaming = true })
+                SheetAction("Infos sur l'app", onClick = onInfo)
+                SheetAction("Désinstaller", onClick = onUninstall)
+            }
         }
     }
+}
+
+@Composable
+private fun PillButton(text: String, filled: Boolean, onClick: () -> Unit) {
+    Text(
+        text,
+        color = if (filled) Black else White,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (filled) Accent else Raised)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    )
 }
 
 @Composable

@@ -46,6 +46,40 @@ class Prefs private constructor(context: Context) {
         private set
     var lockScreen by mutableStateOf(sp.getBoolean(K_LOCK_SCREEN, false))
         private set
+    var showNotifications by mutableStateOf(sp.getBoolean(K_SHOW_NOTIFICATIONS, true))
+        private set
+    var showMusic by mutableStateOf(sp.getBoolean(K_SHOW_MUSIC, true))
+        private set
+
+    /** User-chosen names, by app key. */
+    var customLabels by mutableStateOf(parseLabels(sp.getString(K_LABELS, null)))
+        private set
+
+    fun updateShowNotifications(value: Boolean) {
+        showNotifications = value
+        sp.edit().putBoolean(K_SHOW_NOTIFICATIONS, value).apply()
+    }
+
+    fun updateShowMusic(value: Boolean) {
+        showMusic = value
+        sp.edit().putBoolean(K_SHOW_MUSIC, value).apply()
+    }
+
+    /** Renames an app; a blank or null [label] restores its original name. */
+    fun setLabel(key: String, label: String?) {
+        val map = customLabels.toMutableMap()
+        if (label.isNullOrBlank()) map.remove(key) else map[key] = label.trim()
+        customLabels = map
+        sp.edit()
+            .putString(K_LABELS, map.entries.joinToString("\n") { "${it.key}$LABEL_SEP${it.value}" })
+            .apply()
+    }
+
+    private fun parseLabels(raw: String?): Map<String, String> =
+        raw.orEmpty().split('\n').mapNotNull { line ->
+            val parts = line.split(LABEL_SEP, limit = 2)
+            if (parts.size == 2) parts[0] to parts[1] else null
+        }.toMap()
 
     /** Ordered list of favorite app keys (flattened component names). */
     var favorites by mutableStateOf(
@@ -128,6 +162,10 @@ class Prefs private constructor(context: Context) {
         private const val K_SHOW_CLOCK = "show_clock"
         private const val K_LOCK_SCREEN = "lock_screen"
         private const val K_FAVORITES = "favorites"
+        private const val K_SHOW_NOTIFICATIONS = "show_notifications"
+        private const val K_SHOW_MUSIC = "show_music"
+        private const val K_LABELS = "custom_labels"
+        private const val LABEL_SEP = "\u001F"
 
         @Volatile
         private var instance: Prefs? = null

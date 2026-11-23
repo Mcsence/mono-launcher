@@ -30,9 +30,24 @@ data class AppEntry(
     /** Full icon, or a white glyph to tint when [isGlyph] (accent-colored icons). */
     val icon: ImageBitmap?,
     val isGlyph: Boolean,
+    /** Name given by the app itself, kept when the user renames it. */
+    val originalLabel: String = label,
 ) {
     val letter: String = letterOf(label)
 }
+
+/** "#" first, then alphabetical in the phone's language. */
+fun sortApps(apps: List<AppEntry>): List<AppEntry> {
+    val collator = Collator.getInstance()
+    return apps.sortedWith(
+        compareBy<AppEntry> { if (it.letter == "#") 0 else 1 }
+            .thenComparator { a, b -> collator.compare(a.label, b.label) }
+    )
+}
+
+/** Applies the user's custom names, then re-sorts. */
+fun applyLabels(apps: List<AppEntry>, labels: Map<String, String>): List<AppEntry> =
+    if (labels.isEmpty()) apps else sortApps(apps.map { app -> labels[app.key]?.let { app.copy(label = it) } ?: app })
 
 private val diacritics = Regex("\\p{Mn}+")
 
@@ -54,14 +69,13 @@ class AppRepository(private val context: Context) {
      * [onlyKeys] restricts loading (and icon rendering) to those apps.
      */
     fun load(config: IconConfig, onlyKeys: Set<String>? = null): List<AppEntry> {
-        val collator = Collator.getInstance()
         val px = (48 * context.resources.displayMetrics.density).toInt()
         val pack = if (config.pack.isNotEmpty() && config.style != IconStyle.THEMED) {
             IconPacks.load(context, config.pack)
         } else {
             null
         }
-        return launcherApps.getActivityList(null, Process.myUserHandle())
+        return sortApps(launcherApps.getActivityList(null, Process.myUserHandle())
             .filter { it.componentName.packageName != context.packageName }
             .filter { onlyKeys == null || it.componentName.flattenToShortString() in onlyKeys }
             .map { info ->
@@ -74,11 +88,7 @@ class AppRepository(private val context: Context) {
                     icon = icon,
                     isGlyph = isGlyph,
                 )
-            }
-            .sortedWith(
-                compareBy<AppEntry> { if (it.letter == "#") 0 else 1 }
-                    .thenComparator { a, b -> collator.compare(a.label, b.label) }
-            )
+            })
     }
 
     private fun renderIcon(

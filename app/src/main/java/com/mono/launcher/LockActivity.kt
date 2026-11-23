@@ -81,7 +81,8 @@ class LockActivity : ComponentActivity() {
     private fun loadFavorites() {
         lifecycleScope.launch {
             val keys = prefs.favorites.toSet()
-            apps.value = withContext(Dispatchers.Default) { repo.load(prefs.iconConfig(), onlyKeys = keys) }
+            val loaded = withContext(Dispatchers.Default) { repo.load(prefs.iconConfig(), onlyKeys = keys) }
+            apps.value = applyLabels(loaded, prefs.customLabels)
         }
     }
 

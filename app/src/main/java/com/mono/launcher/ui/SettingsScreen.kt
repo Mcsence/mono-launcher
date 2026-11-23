@@ -47,10 +47,12 @@ fun SettingsScreen(
     prefs: Prefs,
     iconPacks: List<IconPackInfo>,
     overlayGranted: Boolean,
+    notificationAccess: Boolean,
     onClose: () -> Unit,
     onSetDefault: () -> Unit,
     onLockScreenChange: (Boolean) -> Unit,
     onRequestOverlay: () -> Unit,
+    onRequestNotificationAccess: () -> Unit,
 ) {
     var picking by remember { mutableStateOf(false) }
 
@@ -85,6 +87,19 @@ fun SettingsScreen(
                 ActionRow("Choisir les apps favorites", "${prefs.favorites.size}") { picking = true }
                 Spacer(Modifier.height(10.dp))
                 Segmented(FavStyle.entries, prefs.favStyle, { it.label }, prefs::updateFavStyle)
+            }
+
+            Section("Notifications sous les favoris") {
+                Segmented(listOf(true, false), prefs.showNotifications, { if (it) "Affichées" else "Masquées" }, prefs::updateShowNotifications)
+            }
+
+            Section("Lecteur musique") {
+                Segmented(listOf(true, false), prefs.showMusic, { if (it) "Affiché" else "Masqué" }, prefs::updateShowMusic)
+                if ((prefs.showNotifications || prefs.showMusic) && !notificationAccess) {
+                    Spacer(Modifier.height(10.dp))
+                    ActionRow("Autoriser l'accès aux notifications", "!", highlight = true, onClick = onRequestNotificationAccess)
+                    Hint("Nécessaire pour les aperçus et le lecteur. Rien ne quitte ton téléphone.")
+                }
             }
 
             Section("Couleur d'accent") {

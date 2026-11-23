@@ -67,6 +67,17 @@
                 android:value="Shows the user's favorite apps over the lock screen when the screen turns on." />
         </service>
 
+        <!-- Notification previews under favorites + music player controls. -->
+        <service
+            android:name=".NotifService"
+            android:exported="true"
+            android:label="Mono"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
