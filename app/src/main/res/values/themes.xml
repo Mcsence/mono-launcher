@@ -9,6 +9,13 @@
         <item name="android:windowShowWallpaper">false</item>
     </style>
 
+    <!-- Home screen: always a wallpaper window (like other launchers). In the dark and
+         light themes Lumen simply paints over it; in "Fond d'écran" mode it shows through. -->
+    <style name="Theme.Mono.Home">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+
     <!-- Lock screen overlay: appears and disappears instantly, no slide. -->
     <style name="Theme.Mono.NoAnimation">
         <item name="android:windowAnimationStyle">@null</item>

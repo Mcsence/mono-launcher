@@ -1,4 +1,4 @@
-package com.mono.launcher
+﻿package com.mono.launcher
 
 import android.Manifest
 import android.appwidget.AppWidgetHost
@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         prefs = Prefs.get(this)
-        applyMonoWindow(prefs.theme)
+        applyMonoWindow(prefs.theme, isHome = true)
         super.onCreate(savedInstanceState)
 
         repo = AppRepository(this)
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
 
         // Light / dark / wallpaper: status bar icons and window background follow the theme.
         lifecycleScope.launch {
-            snapshotFlow { prefs.theme }.drop(1).collect { applyMonoWindow(it) }
+            snapshotFlow { prefs.theme }.drop(1).collect { applyMonoWindow(it, isHome = true) }
         }
 
         // Re-render icons when the icon style, shape or pack changes.

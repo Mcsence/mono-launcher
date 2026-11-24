@@ -143,7 +143,7 @@ fun MonoTheme(
 }
 
 /** Status bar icons, window background and wallpaper visibility for the chosen theme. */
-fun ComponentActivity.applyMonoWindow(mode: ThemeMode) {
+fun ComponentActivity.applyMonoWindow(mode: ThemeMode, isHome: Boolean = false) {
     val transparent = android.graphics.Color.TRANSPARENT
     if (mode == ThemeMode.LIGHT) {
         enableEdgeToEdge(SystemBarStyle.light(transparent, transparent), SystemBarStyle.light(transparent, transparent))
@@ -154,7 +154,8 @@ fun ComponentActivity.applyMonoWindow(mode: ThemeMode) {
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         window.setBackgroundDrawable(ColorDrawable(transparent))
     } else {
-        window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        // The home window stays a wallpaper window (set in its theme); an opaque background covers it.
+        if (!isHome) window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         val bg = if (mode == ThemeMode.LIGHT) android.graphics.Color.WHITE else android.graphics.Color.BLACK
         window.setBackgroundDrawable(ColorDrawable(bg))
     }
