@@ -29,6 +29,10 @@
         <intent>
             <action android:name="org.adw.launcher.THEMES" />
         </intent>
+        <!-- Apps that offer home screen widgets. -->
+        <intent>
+            <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        </intent>
         <intent>
             <action android:name="com.novalauncher.THEME" />
         </intent>
@@ -80,7 +84,7 @@
         <service
             android:name=".NotifService"
             android:exported="true"
-            android:label="Mono"
+            android:label="@string/app_name"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

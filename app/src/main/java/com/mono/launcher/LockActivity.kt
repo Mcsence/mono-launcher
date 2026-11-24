@@ -19,6 +19,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.mono.launcher.ui.LockScreen
 import com.mono.launcher.ui.MonoTheme
+import com.mono.launcher.ui.applyMonoWindow
+import com.mono.launcher.ui.paletteFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -37,8 +39,8 @@ class LockActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val transparent = android.graphics.Color.TRANSPARENT
-        enableEdgeToEdge(SystemBarStyle.dark(transparent), SystemBarStyle.dark(transparent))
+        prefs = Prefs.get(this)
+        applyMonoWindow(prefs.theme)
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true)
@@ -48,7 +50,6 @@ class LockActivity : ComponentActivity() {
         }
 
         repo = AppRepository(this)
-        prefs = Prefs.get(this)
         ContextCompat.registerReceiver(
             this,
             unlockedReceiver,
@@ -57,7 +58,11 @@ class LockActivity : ComponentActivity() {
         )
 
         setContent {
-            MonoTheme(accent = Color(prefs.accent)) {
+            MonoTheme(
+                accent = Color(prefs.accent),
+                palette = paletteFor(prefs.theme, prefs.wallpaperDim.alpha),
+                font = prefs.font.family,
+            ) {
                 // In focus mode, only the work apps are shown here too.
                 val inFocus = Focus.activeUntil(prefs) != null
                 val shown = remember(apps.value, inFocus, prefs.focusApps) {

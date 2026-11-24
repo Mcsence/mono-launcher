@@ -16,7 +16,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "1.0.$buildNumber"
+        versionName = "1.1.$buildNumber"
     }
 
     // Release key comes from environment variables (GitHub secrets); never committed.
@@ -42,9 +42,9 @@ android {
             }
         }
         debug {
-            // Local test builds install next to the GitHub version ("Mono dev") without conflicts.
+            // Local test builds install next to the GitHub version ("Lumen dev") without conflicts.
             applicationIdSuffix = ".dev"
-            resValue("string", "app_name", "Mono dev")
+            resValue("string", "app_name", "Lumen dev")
         }
     }
 

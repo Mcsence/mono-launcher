@@ -1,6 +1,9 @@
-# Mono — launcher Android noir & blanc + 1 couleur
+# Lumen — launcher Android noir & blanc + 1 couleur
 
-Launcher minimaliste écrit de zéro en Kotlin + Jetpack Compose.
+Launcher minimaliste écrit de zéro en Kotlin + Jetpack Compose
+(anciennement « Mono » ; l'identifiant `com.mono.launcher` est conservé pour les mises à jour).
+
+Polices intégrées (Space Grotesk, Manrope, Syne, Unbounded) : Google Fonts, licence SIL Open Font License 1.1.
 
 ## Fonctionnalités
 

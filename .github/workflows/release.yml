@@ -11,6 +11,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      VERSION: 1.1.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,13 +37,13 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
-          cp app/build/outputs/apk/release/app-release.apk "Mono-1.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "Lumen-$VERSION.apk"
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           NOTES: ${{ github.event.head_commit.message }}
         run: |
-          gh release create "v1.0.${{ github.run_number }}" "Mono-1.0.${{ github.run_number }}.apk" \
-            --title "Mono 1.0.${{ github.run_number }}" \
+          gh release create "v$VERSION" "Lumen-$VERSION.apk" \
+            --title "Lumen $VERSION" \
             --notes "${NOTES:-Build manuel}"

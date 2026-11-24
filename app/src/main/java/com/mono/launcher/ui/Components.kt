@@ -72,11 +72,15 @@ fun IconShape.composeShape(): Shape = when (this) {
  * tile, so the icon switches to black / grayscale to stay readable.
  */
 @Composable
-fun AppIcon(app: AppEntry, prefs: Prefs, size: Dp, onAccent: Boolean = false) {
+fun AppIcon(app: AppEntry, prefs: Prefs, size: Dp, onAccent: Boolean = false, dimmed: Boolean = false) {
     val style = prefs.iconStyle
     if (style == IconStyle.NONE) return
     if (style == IconStyle.THEMED || app.isGlyph) {
-        val tint = if (onAccent) Black else Accent
+        val tint = when {
+            onAccent -> OnAccent
+            dimmed -> Muted
+            else -> Accent
+        }
         Box(
             Modifier
                 .size(size)
@@ -109,7 +113,8 @@ fun AppIcon(app: AppEntry, prefs: Prefs, size: Dp, onAccent: Boolean = false) {
         bitmap = bitmap,
         contentDescription = null,
         modifier = Modifier.size(size),
-        colorFilter = if (style == IconStyle.MONO || onAccent) GrayscaleFilter else null,
+        alpha = if (dimmed) 0.4f else 1f,
+        colorFilter = if (style == IconStyle.MONO || onAccent || dimmed) GrayscaleFilter else null,
     )
 }
 
@@ -153,7 +158,7 @@ fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, onSelect:
             ) {
                 Text(
                     label(option),
-                    color = if (isSelected) Black else White,
+                    color = if (isSelected) OnAccent else White,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -228,7 +233,12 @@ fun AppActionsSheet(
                     value = newName,
                     onValueChange = { newName = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                    textStyle = TextStyle(
+                        color = White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = LocalMonoFont.current,
+                    ),
                     cursorBrush = SolidColor(Accent),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onRename(newName) }),
@@ -267,7 +277,7 @@ fun AppActionsSheet(
 private fun PillButton(text: String, filled: Boolean, onClick: () -> Unit) {
     Text(
         text,
-        color = if (filled) Black else White,
+        color = if (filled) OnAccent else White,
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier

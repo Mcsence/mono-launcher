@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Mono</string>
-    <string name="accessibility_label">Mono : gestes</string>
-    <string name="accessibility_description">Permet à Mono d\'éteindre l\'écran avec un double-tap et d\'ouvrir les notifications en glissant vers le bas. Mono ne lit pas le contenu de l\'écran.</string>
+    <string name="app_name">Lumen</string>
+    <string name="accessibility_label">Lumen : gestes</string>
+    <string name="accessibility_description">Permet à Lumen d\'éteindre l\'écran avec un double-tap et d\'ouvrir les notifications en glissant vers le bas. Lumen ne lit pas le contenu de l\'écran.</string>
 </resources>

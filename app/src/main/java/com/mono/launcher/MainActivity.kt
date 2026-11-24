@@ -1,7 +1,14 @@
 package com.mono.launcher
 
 import android.Manifest
+import android.appwidget.AppWidgetHost
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.ComponentName
+import androidx.compose.runtime.CompositionLocalProvider
+import com.mono.launcher.ui.LocalWidgetHost
+import com.mono.launcher.ui.applyMonoWindow
+import com.mono.launcher.ui.paletteFor
 import android.content.Intent
 import android.service.notification.NotificationListenerService
 import androidx.compose.runtime.remember
@@ -49,6 +56,14 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    private lateinit var widgetHost: AppWidgetHost
+    private var pendingWidgetId = -1
+
+    private val bindWidget =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == RESULT_OK) configureOrSaveWidget(pendingWidgetId) else cancelPendingWidget()
+        }
+
     private val packageCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String?, user: UserHandle?) = refresh()
         override fun onPackageAdded(packageName: String?, user: UserHandle?) = refresh()
@@ -58,13 +73,18 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val transparent = android.graphics.Color.TRANSPARENT
-        enableEdgeToEdge(SystemBarStyle.dark(transparent), SystemBarStyle.dark(transparent))
+        prefs = Prefs.get(this)
+        applyMonoWindow(prefs.theme)
         super.onCreate(savedInstanceState)
 
         repo = AppRepository(this)
-        prefs = Prefs.get(this)
         repo.launcherApps.registerCallback(packageCallback)
+        widgetHost = AppWidgetHost(applicationContext, WIDGET_HOST_ID)
+
+        // Light / dark / wallpaper: status bar icons and window background follow the theme.
+        lifecycleScope.launch {
+            snapshotFlow { prefs.theme }.drop(1).collect { applyMonoWindow(it) }
+        }
 
         // Re-render icons when the icon style, shape or pack changes.
         lifecycleScope.launch {
@@ -75,7 +95,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 while (true) {
-                    if (prefs.screenTime != ScreenTimeMode.OFF && ScreenTime.hasAccess(this@MainActivity)) {
+                    val needed = prefs.screenTime != ScreenTimeMode.OFF || prefs.limits.isNotEmpty()
+                    if (needed && ScreenTime.hasAccess(this@MainActivity)) {
                         ScreenTime.today = withContext(Dispatchers.Default) {
                             runCatching { ScreenTime.compute(this@MainActivity) }.getOrDefault(emptyMap())
                         }
@@ -86,10 +107,15 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MonoTheme(accent = Color(prefs.accent)) {
+            MonoTheme(
+                accent = Color(prefs.accent),
+                palette = paletteFor(prefs.theme, prefs.wallpaperDim.alpha),
+                font = prefs.font.family,
+            ) {
                 val shownApps = remember(apps.value, prefs.customLabels) {
                     applyLabels(apps.value, prefs.customLabels)
                 }
+                CompositionLocalProvider(LocalWidgetHost provides widgetHost) {
                 LauncherRoot(
                     apps = shownApps,
                     prefs = prefs,
@@ -116,9 +142,83 @@ class MainActivity : ComponentActivity() {
                     onRequestUsageAccess = {
                         runCatching { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
                     },
+                    onAddWidget = ::addWidget,
+                    onRemoveWidget = ::removeWidget,
                 )
+                }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        runCatching { widgetHost.startListening() }
+    }
+
+    override fun onStop() {
+        runCatching { widgetHost.stopListening() }
+        super.onStop()
+    }
+
+    // ---- Widgets: allocate an id, get permission to bind it, let the widget configure itself. ----
+
+    private fun addWidget(info: AppWidgetProviderInfo) {
+        val manager = AppWidgetManager.getInstance(this)
+        val id = widgetHost.allocateAppWidgetId()
+        pendingWidgetId = id
+        if (manager.bindAppWidgetIdIfAllowed(id, info.profile, info.provider, null)) {
+            configureOrSaveWidget(id)
+        } else {
+            bindWidget.launch(
+                Intent(AppWidgetManager.ACTION_APPWIDGET_BIND)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, info.profile)
+            )
+        }
+    }
+
+    private fun configureOrSaveWidget(id: Int) {
+        val info = AppWidgetManager.getInstance(this).getAppWidgetInfo(id)
+        if (info == null) {
+            cancelPendingWidget()
+            return
+        }
+        if (info.configure != null) {
+            val started = runCatching {
+                widgetHost.startAppWidgetConfigureActivityForResult(this, id, 0, REQUEST_CONFIGURE_WIDGET, null)
+            }.isSuccess
+            if (!started) saveWidget(id, info)
+        } else {
+            saveWidget(id, info)
+        }
+    }
+
+    private fun saveWidget(id: Int, info: AppWidgetProviderInfo) {
+        val density = resources.displayMetrics.density
+        val heightDp = (info.minHeight / density).toInt().coerceIn(90, 260)
+        prefs.addWidget(id, heightDp)
+        pendingWidgetId = -1
+    }
+
+    private fun cancelPendingWidget() {
+        if (pendingWidgetId != -1) runCatching { widgetHost.deleteAppWidgetId(pendingWidgetId) }
+        pendingWidgetId = -1
+    }
+
+    private fun removeWidget(id: Int) {
+        runCatching { widgetHost.deleteAppWidgetId(id) }
+        prefs.removeWidget(id)
+    }
+
+    @Deprecated("Needed for AppWidgetHost.startAppWidgetConfigureActivityForResult")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_CONFIGURE_WIDGET) return
+        val id = pendingWidgetId
+        val info = AppWidgetManager.getInstance(this).getAppWidgetInfo(id)
+        if (resultCode == RESULT_OK && info != null) saveWidget(id, info) else cancelPendingWidget()
     }
 
     override fun onResume() {
@@ -167,6 +267,11 @@ class MainActivity : ComponentActivity() {
                 Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             )
         }
+    }
+
+    companion object {
+        private const val WIDGET_HOST_ID = 1024
+        private const val REQUEST_CONFIGURE_WIDGET = 42
     }
 
     private fun refresh() {

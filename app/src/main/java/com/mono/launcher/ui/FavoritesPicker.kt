@@ -48,13 +48,13 @@ fun GestureTargetPicker(
     current: String,
     onPick: (String) -> Unit,
     onClose: () -> Unit,
+    specials: List<String> = listOf(Gestures.NONE, Gestures.CAMERA, Gestures.MESSAGES),
 ) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) {
         val q = normalize(query.trim())
         if (q.isEmpty()) apps else apps.filter { normalize(it.label).contains(q) }
     }
-    val specials = listOf(Gestures.NONE, Gestures.CAMERA, Gestures.MESSAGES)
     BackHandler(onBack = onClose)
 
     Column(
@@ -112,6 +112,21 @@ fun GestureTargetPicker(
 }
 
 @Composable
+private fun SmallTextButton(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        color = Muted,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
 private fun TargetRow(label: String, selected: Boolean, app: AppEntry?, prefs: Prefs, onClick: () -> Unit) {
     Row(
         Modifier
@@ -151,6 +166,8 @@ fun AppPicker(
     numbered: Boolean,
     onToggle: (String) -> Unit,
     onClose: () -> Unit,
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) {
@@ -182,7 +199,7 @@ fun AppPicker(
             Spacer(Modifier.weight(1f))
             Text(
                 "OK",
-                color = Black,
+                color = OnAccent,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -191,6 +208,13 @@ fun AppPicker(
                     .clickable(onClick = onClose)
                     .padding(horizontal = 20.dp, vertical = 10.dp),
             )
+        }
+
+        if (onRename != null || onDelete != null) {
+            Row(Modifier.padding(start = 16.dp, top = 4.dp)) {
+                onRename?.let { SmallTextButton("RENOMMER", it) }
+                onDelete?.let { SmallTextButton("SUPPRIMER", it) }
+            }
         }
 
         SearchField(
@@ -239,7 +263,7 @@ fun AppPicker(
                         if (isSelected) {
                             Text(
                                 if (numbered) "${position + 1}" else "✓",
-                                color = Black,
+                                color = OnAccent,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                             )

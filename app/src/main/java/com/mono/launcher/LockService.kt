@@ -61,7 +61,7 @@ class LockService : Service() {
         )
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Mono")
+            .setContentTitle("Lumen")
             .setContentText("Favoris sur l'écran verrouillé")
             .setOngoing(true)
             .build()

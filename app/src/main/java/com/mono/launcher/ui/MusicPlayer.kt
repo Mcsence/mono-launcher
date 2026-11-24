@@ -100,6 +100,8 @@ fun MusicPlayer(media: MediaInfo, modifier: Modifier = Modifier) {
 @Composable
 private fun MediaButton(icon: MediaIcon, filled: Boolean, onClick: () -> Unit) {
     val accent = Accent
+    val onAccent = OnAccent
+    val foreground = White
     Box(
         Modifier
             .padding(start = 4.dp)
@@ -110,7 +112,7 @@ private fun MediaButton(icon: MediaIcon, filled: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.size(14.dp)) {
-            drawMediaIcon(icon, if (filled) Black else White)
+            drawMediaIcon(icon, if (filled) onAccent else foreground)
         }
     }
 }

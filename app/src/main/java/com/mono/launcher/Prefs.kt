@@ -5,7 +5,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-enum class FavStyle(val label: String) { LIST("Liste"), TILES("Tuiles") }
+enum class FavStyle(val label: String) { LIST("Liste"), TILES("Tuiles"), CATEGORIES("Catégories") }
+
+/** A named group of apps shown as a big title on the home screen. */
+data class Category(val name: String, val keys: List<String>)
+
+/** A real Android widget placed on the home screen. */
+data class WidgetEntry(val id: Int, val heightDp: Int)
 
 enum class IconStyle(val label: String) {
     NONE("Aucune"), MONO("N&B"), COLOR("Couleur"), THEMED("Accent")
@@ -141,6 +147,116 @@ class Prefs private constructor(context: Context) {
         sp.edit().putBoolean(K_DOUBLE_TAP, value).apply()
     }
 
+    var theme by mutableStateOf(enumPref(K_THEME, ThemeMode.DARK))
+        private set
+    var wallpaperDim by mutableStateOf(enumPref(K_WALLPAPER_DIM, WallpaperDim.MEDIUM))
+        private set
+    var font by mutableStateOf(enumPref(K_FONT, FontChoice.GROTESK))
+        private set
+    var clockStyle by mutableStateOf(enumPref(K_CLOCK_STYLE, ClockStyle.DUO))
+        private set
+
+    fun updateTheme(value: ThemeMode) {
+        theme = value
+        sp.edit().putString(K_THEME, value.name).apply()
+    }
+
+    fun updateWallpaperDim(value: WallpaperDim) {
+        wallpaperDim = value
+        sp.edit().putString(K_WALLPAPER_DIM, value.name).apply()
+    }
+
+    fun updateFont(value: FontChoice) {
+        font = value
+        sp.edit().putString(K_FONT, value.name).apply()
+    }
+
+    fun updateClockStyle(value: ClockStyle) {
+        clockStyle = value
+        sp.edit().putString(K_CLOCK_STYLE, value.name).apply()
+    }
+
+    // ---- Categories ----
+
+    var categories by mutableStateOf(parseCategories(sp.getString(K_CATEGORIES, null)))
+        private set
+
+    fun addCategory(name: String): Int {
+        saveCategories(categories + Category(name.trim(), emptyList()))
+        return categories.lastIndex
+    }
+
+    fun renameCategory(index: Int, name: String) {
+        if (index !in categories.indices || name.isBlank()) return
+        saveCategories(categories.toMutableList().apply { this[index] = this[index].copy(name = name.trim()) })
+    }
+
+    fun deleteCategory(index: Int) {
+        if (index !in categories.indices) return
+        saveCategories(categories.toMutableList().apply { removeAt(index) })
+    }
+
+    fun toggleCategoryApp(index: Int, key: String) {
+        if (index !in categories.indices) return
+        val category = categories[index]
+        val keys = if (key in category.keys) category.keys - key else category.keys + key
+        saveCategories(categories.toMutableList().apply { this[index] = category.copy(keys = keys) })
+    }
+
+    private fun saveCategories(list: List<Category>) {
+        categories = list
+        val raw = list.joinToString("\n") { c -> c.name + LABEL_SEP + c.keys.joinToString(ITEM_SEP) }
+        sp.edit().putString(K_CATEGORIES, raw).apply()
+    }
+
+    private fun parseCategories(raw: String?): List<Category> =
+        raw.orEmpty().split('\n').filter { it.isNotBlank() }.map { line ->
+            val parts = line.split(LABEL_SEP, limit = 2)
+            Category(parts[0], parts.getOrNull(1).orEmpty().split(ITEM_SEP).filter { it.isNotBlank() })
+        }
+
+    // ---- Daily limits (minutes per day, by package name) ----
+
+    var limits by mutableStateOf(
+        sp.getString(K_LIMITS, "").orEmpty().split('\n').mapNotNull { line ->
+            val parts = line.split(LABEL_SEP, limit = 2)
+            val minutes = parts.getOrNull(1)?.toIntOrNull()
+            if (parts.size == 2 && minutes != null) parts[0] to minutes else null
+        }.toMap()
+    )
+        private set
+
+    fun setLimit(packageName: String, minutes: Int?) {
+        val map = limits.toMutableMap()
+        if (minutes == null || minutes <= 0) map.remove(packageName) else map[packageName] = minutes
+        limits = map
+        sp.edit().putString(K_LIMITS, map.entries.joinToString("\n") { "${it.key}$LABEL_SEP${it.value}" }).apply()
+    }
+
+    // ---- Widgets ----
+
+    var widgets by mutableStateOf(
+        sp.getString(K_WIDGETS, "").orEmpty().split(',').mapNotNull { item ->
+            val parts = item.split(':')
+            val id = parts.getOrNull(0)?.toIntOrNull()
+            val height = parts.getOrNull(1)?.toIntOrNull()
+            if (id != null && height != null) WidgetEntry(id, height) else null
+        }
+    )
+        private set
+
+    fun addWidget(id: Int, heightDp: Int) = saveWidgets(widgets + WidgetEntry(id, heightDp))
+
+    fun removeWidget(id: Int) = saveWidgets(widgets.filter { it.id != id })
+
+    fun setWidgetHeight(id: Int, heightDp: Int) =
+        saveWidgets(widgets.map { if (it.id == id) it.copy(heightDp = heightDp) else it })
+
+    private fun saveWidgets(list: List<WidgetEntry>) {
+        widgets = list
+        sp.edit().putString(K_WIDGETS, list.joinToString(",") { "${it.id}:${it.heightDp}" }).apply()
+    }
+
     /** User-chosen names, by app key. */
     var customLabels by mutableStateOf(parseLabels(sp.getString(K_LABELS, null)))
         private set
@@ -256,6 +372,10 @@ class Prefs private constructor(context: Context) {
         private const val K_SHOW_MUSIC = "show_music"
         private const val K_LABELS = "custom_labels"
         private const val K_SCREEN_TIME = "screen_time"
+        private const val K_THEME = "theme"
+        private const val K_WALLPAPER_DIM = "wallpaper_dim"
+        private const val K_FONT = "font"
+        private const val K_CLOCK_STYLE = "clock_style"
         private const val K_SWIPE_LEFT = "swipe_left"
         private const val K_SWIPE_RIGHT = "swipe_right"
         private const val K_SWIPE_DOWN = "swipe_down_notifications"
@@ -267,6 +387,10 @@ class Prefs private constructor(context: Context) {
         private const val K_FOCUS_DAYS = "focus_days"
         private const val K_FOCUS_PAUSED = "focus_paused_until"
         private const val LABEL_SEP = "\u001F"
+        private const val ITEM_SEP = "\u001E"
+        private const val K_CATEGORIES = "categories"
+        private const val K_LIMITS = "daily_limits"
+        private const val K_WIDGETS = "widgets"
 
         @Volatile
         private var instance: Prefs? = null

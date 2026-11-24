@@ -62,6 +62,7 @@ fun AppDrawer(
     apps: List<AppEntry>,
     hiddenCount: Int,
     prefs: Prefs,
+    onOpenSettings: () -> Unit,
     onClose: () -> Unit,
     onLaunch: (AppEntry) -> Unit,
     onLongPress: (AppEntry) -> Unit,
@@ -118,6 +119,17 @@ fun AppDrawer(
                     modifier = Modifier.padding(start = 8.dp, bottom = 14.dp).align(Alignment.Bottom),
                 )
                 Spacer(Modifier.weight(1f))
+                Text(
+                    "RÉGLAGES",
+                    color = Muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onOpenSettings)
+                        .padding(12.dp),
+                )
                 Text(
                     "FERMER",
                     color = Muted,
@@ -204,7 +216,7 @@ fun AppDrawer(
                     .background(Accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(letter, color = Black, fontSize = 56.sp, fontWeight = FontWeight.Black)
+                Text(letter, color = OnAccent, fontSize = 56.sp, fontWeight = FontWeight.Black)
             }
         }
     }
@@ -221,7 +233,12 @@ fun SearchField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        textStyle = TextStyle(color = White, fontSize = 18.sp, fontWeight = FontWeight.Medium),
+        textStyle = TextStyle(
+            color = White,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = LocalMonoFont.current,
+        ),
         cursorBrush = SolidColor(Accent),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
         keyboardActions = KeyboardActions(onGo = { onGo() }),
@@ -272,13 +289,18 @@ private fun AppRow(
             .padding(vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val over = isOverLimit(app, prefs)
         if (prefs.iconStyle != IconStyle.NONE) {
-            AppIcon(app, prefs, 26.dp * scale)
+            AppIcon(app, prefs, 26.dp * scale, dimmed = over)
             Spacer(Modifier.width(12.dp))
         }
         Text(
             app.label,
-            color = if (pressed) Accent else White,
+            color = when {
+                pressed -> Accent
+                over -> Muted.copy(alpha = 0.6f)
+                else -> White
+            },
             fontSize = (17 * scale).sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,

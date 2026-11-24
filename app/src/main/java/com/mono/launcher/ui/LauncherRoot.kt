@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import android.appwidget.AppWidgetProviderInfo
 import androidx.compose.runtime.produceState
 import com.mono.launcher.AppEntry
 import androidx.compose.ui.platform.LocalContext
@@ -50,9 +51,13 @@ fun LauncherRoot(
     onRequestNotificationAccess: () -> Unit,
     onRequestUsageAccess: () -> Unit,
     onRequestAccessibility: () -> Unit,
+    onAddWidget: (AppWidgetProviderInfo) -> Unit,
+    onRemoveWidget: (Int) -> Unit,
 ) {
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     var menuApp by remember { mutableStateOf<AppEntry?>(null) }
+    /** App waiting behind the "breathe" pause because it has a daily limit. */
+    var pausedApp by remember { mutableStateOf<AppEntry?>(null) }
     val context = LocalContext.current
 
     // Focus mode: re-checked every 20 s so it starts and ends on time.
@@ -71,16 +76,22 @@ fun LauncherRoot(
     LaunchedEffect(homeSignal) {
         screen = Screen.HOME
         menuApp = null
+        pausedApp = null
     }
     // Back never leaves the launcher; it only closes the drawer or settings.
     BackHandler { screen = Screen.HOME }
 
-    val launch: (AppEntry) -> Unit = {
-        onLaunch(it)
-        screen = Screen.HOME
+    // Apps with a daily limit go through the pause screen first.
+    val launch: (AppEntry) -> Unit = { app ->
+        if (app.component.packageName in prefs.limits) {
+            pausedApp = app
+        } else {
+            onLaunch(app)
+            screen = Screen.HOME
+        }
     }
 
-    Box(Modifier.fillMaxSize().background(Black)) {
+    Box(Modifier.fillMaxSize()) {
         HomeScreen(
             apps = visibleApps,
             prefs = prefs,
@@ -105,6 +116,7 @@ fun LauncherRoot(
                 apps = visibleApps,
                 hiddenCount = apps.size - visibleApps.size,
                 prefs = prefs,
+                onOpenSettings = { screen = Screen.SETTINGS },
                 onClose = { screen = Screen.HOME },
                 onLaunch = launch,
                 onLongPress = { menuApp = it },
@@ -131,6 +143,24 @@ fun LauncherRoot(
                 onRequestOverlay = onRequestOverlay,
                 onRequestNotificationAccess = onRequestNotificationAccess,
                 onRequestUsageAccess = onRequestUsageAccess,
+                onAddWidget = onAddWidget,
+                onRemoveWidget = onRemoveWidget,
+            )
+        }
+
+        pausedApp?.let { app ->
+            PauseScreen(
+                app = app,
+                prefs = prefs,
+                onOpen = {
+                    pausedApp = null
+                    onLaunch(app)
+                    screen = Screen.HOME
+                },
+                onCancel = {
+                    pausedApp = null
+                    screen = Screen.HOME
+                },
             )
         }
 
