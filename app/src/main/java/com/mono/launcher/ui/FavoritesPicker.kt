@@ -48,7 +48,7 @@ fun GestureTargetPicker(
     current: String,
     onPick: (String) -> Unit,
     onClose: () -> Unit,
-    specials: List<String> = listOf(Gestures.NONE, Gestures.CAMERA, Gestures.MESSAGES),
+    specials: List<String> = listOf(Gestures.NONE, Gestures.INFOS, Gestures.CAMERA, Gestures.MESSAGES),
 ) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(apps, query) {

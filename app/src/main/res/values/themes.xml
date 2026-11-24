@@ -8,4 +8,9 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowShowWallpaper">false</item>
     </style>
+
+    <!-- Lock screen overlay: appears and disappears instantly, no slide. -->
+    <style name="Theme.Mono.NoAnimation">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

@@ -176,6 +176,44 @@ class Prefs private constructor(context: Context) {
         sp.edit().putString(K_CLOCK_STYLE, value.name).apply()
     }
 
+    // ---- Markets and news ----
+
+    var showMarkets by mutableStateOf(sp.getBoolean(K_SHOW_MARKETS, true))
+        private set
+    /** Yahoo Finance symbols, e.g. ^FCHI (CAC 40), AAPL, BTC-EUR. */
+    var tickers by mutableStateOf(
+        sp.getString(K_TICKERS, "^FCHI,^GSPC,BTC-EUR").orEmpty().split(',').filter { it.isNotBlank() }
+    )
+        private set
+    var showNews by mutableStateOf(sp.getBoolean(K_SHOW_NEWS, true))
+        private set
+    var newsSources by mutableStateOf(
+        sp.getString(K_NEWS_SOURCES, "lemonde,franceinfo").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+    )
+        private set
+
+    fun updateShowMarkets(value: Boolean) {
+        showMarkets = value
+        sp.edit().putBoolean(K_SHOW_MARKETS, value).apply()
+    }
+
+    fun toggleTicker(symbol: String) {
+        val clean = symbol.trim().uppercase()
+        if (clean.isEmpty()) return
+        tickers = if (clean in tickers) tickers - clean else tickers + clean
+        sp.edit().putString(K_TICKERS, tickers.joinToString(",")).apply()
+    }
+
+    fun updateShowNews(value: Boolean) {
+        showNews = value
+        sp.edit().putBoolean(K_SHOW_NEWS, value).apply()
+    }
+
+    fun toggleNewsSource(id: String) {
+        newsSources = if (id in newsSources) newsSources - id else newsSources + id
+        sp.edit().putString(K_NEWS_SOURCES, newsSources.joinToString(",")).apply()
+    }
+
     // ---- Categories ----
 
     var categories by mutableStateOf(parseCategories(sp.getString(K_CATEGORIES, null)))
@@ -389,6 +427,10 @@ class Prefs private constructor(context: Context) {
         private const val LABEL_SEP = "\u001F"
         private const val ITEM_SEP = "\u001E"
         private const val K_CATEGORIES = "categories"
+        private const val K_SHOW_MARKETS = "show_markets"
+        private const val K_TICKERS = "tickers"
+        private const val K_SHOW_NEWS = "show_news"
+        private const val K_NEWS_SOURCES = "news_sources"
         private const val K_LIMITS = "daily_limits"
         private const val K_WIDGETS = "widgets"
 

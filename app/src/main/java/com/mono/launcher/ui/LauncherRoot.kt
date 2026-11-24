@@ -30,7 +30,7 @@ import com.mono.launcher.Prefs
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 
-enum class Screen { HOME, DRAWER, SETTINGS }
+enum class Screen { HOME, DRAWER, SETTINGS, BRIEFING }
 
 @Composable
 fun LauncherRoot(
@@ -91,6 +91,10 @@ fun LauncherRoot(
         }
     }
 
+    val runGesture: (String) -> Unit = { target ->
+        if (target == Gestures.INFOS) screen = Screen.BRIEFING else Gestures.run(context, target, apps, launch)
+    }
+
     Box(Modifier.fillMaxSize()) {
         HomeScreen(
             apps = visibleApps,
@@ -101,11 +105,20 @@ fun LauncherRoot(
             onOpenSettings = { screen = Screen.SETTINGS },
             onLaunch = launch,
             onLongPress = { menuApp = it },
-            onSwipeLeft = { Gestures.run(context, prefs.swipeLeft, apps, launch) },
-            onSwipeRight = { Gestures.run(context, prefs.swipeRight, apps, launch) },
+            onSwipeLeft = { runGesture(prefs.swipeLeft) },
+            onSwipeRight = { runGesture(prefs.swipeRight) },
             onSwipeDown = { if (prefs.swipeDownNotifications) Gestures.openNotifications(context) },
             onDoubleTap = { if (prefs.doubleTapLock) Gestures.lockScreen() },
+            onOpenBriefing = { screen = Screen.BRIEFING },
         )
+
+        AnimatedVisibility(
+            visible = screen == Screen.BRIEFING,
+            enter = slideInHorizontally { -it / 4 } + fadeIn(),
+            exit = slideOutHorizontally { -it / 4 } + fadeOut(),
+        ) {
+            BriefingScreen(prefs = prefs, onClose = { screen = Screen.HOME })
+        }
 
         AnimatedVisibility(
             visible = screen == Screen.DRAWER,

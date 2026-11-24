@@ -52,6 +52,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.BatteryManager
+import androidx.compose.ui.platform.LocalContext
+import com.mono.launcher.FeedState
+import com.mono.launcher.Feeds
 import com.mono.launcher.AppEntry
 import com.mono.launcher.AppNotification
 import com.mono.launcher.ClockStyle
@@ -82,6 +86,7 @@ fun HomeScreen(
     onSwipeRight: () -> Unit,
     onSwipeDown: () -> Unit,
     onDoubleTap: () -> Unit,
+    onOpenBriefing: () -> Unit,
 ) {
     val favorites = rememberFavorites(apps, prefs).ifEmpty {
         // In focus mode with no favorite among the work apps, show the work apps.
@@ -130,7 +135,9 @@ fun HomeScreen(
     ) {
         if (prefs.showClock) ClockBlock(prefs)
         ScreenTimeTotal(prefs)
-        Spacer(Modifier.height(if (prefs.showClock) 24.dp else 16.dp))
+        MarketStrip(prefs, onOpen = onOpenBriefing, modifier = Modifier.padding(top = 10.dp))
+        HeadlineLine(prefs, onOpen = onOpenBriefing)
+        Spacer(Modifier.height(if (prefs.showClock) 20.dp else 12.dp))
 
         if (prefs.widgets.isNotEmpty()) {
             WidgetStack(prefs.widgets)
@@ -194,19 +201,33 @@ fun HomeScreen(
 }
 
 /**
- * Shown over the system lock screen: clock, favorites and music. Notification text is
- * not shown here (only a dot) so messages stay private while the phone is locked.
+ * Shown over the system lock screen: an info screen, no apps. Clock, battery,
+ * notification summary (app names only, never message text), markets, headlines, music.
  */
 @Composable
 fun LockScreen(
     apps: List<AppEntry>,
     prefs: Prefs,
-    onLaunch: (AppEntry) -> Unit,
+    onOpenLink: (String) -> Unit,
     onUnlock: () -> Unit,
 ) {
-    val favorites = rememberFavorites(apps, prefs)
     val unlock by rememberUpdatedState(onUnlock)
     val media = NotificationState.media
+    val context = LocalContext.current
+    val battery = remember {
+        context.getSystemService(BatteryManager::class.java)
+            ?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            ?.takeIf { it in 0..100 }
+    }
+    val notifications = NotificationState.byPackage
+    val notifSummary = remember(notifications, apps) {
+        val labels = apps.associate { it.component.packageName to it.label }
+        val total = notifications.values.sumOf { it.count }
+        if (total == 0) null else {
+            val names = notifications.keys.mapNotNull { labels[it] }.take(3).joinToString(", ")
+            "$total notification${if (total > 1) "s" else ""}" + if (names.isNotBlank()) " · $names" else ""
+        }
+    }
 
     Column(
         Modifier
@@ -223,21 +244,88 @@ fun LockScreen(
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         ClockBlock(prefs)
-        Spacer(Modifier.height(32.dp))
-        SectionLabel("Favoris")
-        Spacer(Modifier.height(16.dp))
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                favorites.isEmpty() -> Text("Aucun favori pour l'instant.", color = Muted, fontSize = 16.sp)
-                prefs.favStyle == FavStyle.TILES -> FavoriteTiles(favorites, prefs, onLaunch, onLongPress = {})
-                else -> FavoriteList(favorites, prefs, showPreviews = false, onLaunch, onLongPress = {})
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            battery?.let {
+                Text("Batterie $it %", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+            if (battery != null && notifSummary != null) {
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.size(4.dp).background(Muted, CircleShape))
+                Spacer(Modifier.width(10.dp))
+            }
+            notifSummary?.let {
+                Text(it, color = White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+
+        val screenTotal = ScreenTime.total
+        if (screenTotal >= 60_000) {
+            Text(
+                "Écran aujourd'hui · ${ScreenTime.format(screenTotal)}",
+                color = Muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+
+        Column(Modifier.weight(1f).fillMaxWidth().padding(top = 28.dp)) {
+            val quotes = FeedState.quotes
+            if (prefs.showMarkets && quotes.isNotEmpty()) {
+                SectionLabel("Bourse")
+                Spacer(Modifier.height(8.dp))
+                quotes.take(4).forEach { quote ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(quote.name, color = White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1)
+                        Text(Feeds.formatPrice(quote), color = White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            Feeds.formatChange(quote),
+                            color = if (quote.changePercent >= 0) Accent else Muted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(22.dp))
+            }
+            val headlines = FeedState.headlines
+            if (prefs.showNews && headlines.isNotEmpty()) {
+                SectionLabel("À la une")
+                Spacer(Modifier.height(6.dp))
+                headlines.take(3).forEach { headline ->
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onOpenLink(headline.link) }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Text(
+                            headline.title,
+                            color = White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 20.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            listOf(headline.source, Feeds.ago(headline.published)).filter { it.isNotBlank() }.joinToString(" · "),
+                            color = Muted,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+        }
+
         if (prefs.showMusic && media != null) {
             MusicPlayer(media, Modifier.padding(top = 12.dp))
         }
         Text(
-            "↑  GLISSER POUR DÉVERROUILLER",
+            "POSE TON DOIGT · OU GLISSE ↑ POUR LE CODE",
             color = Muted,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,

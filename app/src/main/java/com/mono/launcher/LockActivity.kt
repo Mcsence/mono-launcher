@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -32,7 +33,7 @@ import kotlinx.coroutines.withContext
 class LockActivity : ComponentActivity() {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
-    private val apps = mutableStateOf<List<AppEntry>>(emptyList())
+    private val apps = mutableStateOf(AppCache.apps)
 
     private val unlockedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) = finish()
@@ -42,6 +43,12 @@ class LockActivity : ComponentActivity() {
         prefs = Prefs.get(this)
         applyMonoWindow(prefs.theme)
         super.onCreate(savedInstanceState)
+        // No sideways task-switch animation when this screen appears or goes away.
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        }
+        window.setWindowAnimations(0)
         if (Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true)
         } else {
@@ -63,15 +70,16 @@ class LockActivity : ComponentActivity() {
                 palette = paletteFor(prefs.theme, prefs.wallpaperDim.alpha),
                 font = prefs.font.family,
             ) {
-                // In focus mode, only the work apps are shown here too.
-                val inFocus = Focus.activeUntil(prefs) != null
-                val shown = remember(apps.value, inFocus, prefs.focusApps) {
-                    if (inFocus) apps.value.filter { it.key in prefs.focusApps } else apps.value
-                }
                 LockScreen(
-                    apps = shown,
+                    apps = apps.value,
                     prefs = prefs,
-                    onLaunch = { app -> unlockThen { repo.launch(app) } },
+                    onOpenLink = { url ->
+                        unlockThen {
+                            runCatching {
+                                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }
+                    },
                     onUnlock = { unlockThen { } },
                 )
             }
@@ -84,17 +92,29 @@ class LockActivity : ComponentActivity() {
         loadFavorites()
     }
 
+    /** Close instantly: a fade-out would briefly show whatever is behind (wallpaper, old screen). */
+    override fun finish() {
+        super.finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
+    }
+
     override fun onDestroy() {
         runCatching { unregisterReceiver(unlockedReceiver) }
         super.onDestroy()
     }
 
+    /** App names (for the notification summary) and fresh markets / news. */
     private fun loadFavorites() {
         lifecycleScope.launch {
-            val keys = prefs.favorites.toSet()
-            val loaded = withContext(Dispatchers.Default) { repo.load(prefs.iconConfig(), onlyKeys = keys) }
-            apps.value = applyLabels(loaded, prefs.customLabels)
+            if (apps.value.isEmpty()) {
+                val loaded = withContext(Dispatchers.Default) {
+                    repo.load(IconConfig(IconStyle.NONE, IconShape.SYSTEM, ""))
+                }
+                apps.value = applyLabels(loaded, prefs.customLabels)
+            }
         }
+        lifecycleScope.launch { runCatching { Feeds.refresh(prefs) } }
     }
 
     /** Asks for fingerprint / PIN if needed, then runs [action] and closes. */

@@ -42,7 +42,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
-    private val apps = mutableStateOf<List<AppEntry>>(emptyList())
+    private val apps = mutableStateOf(AppCache.apps)
     private val iconPacks = mutableStateOf<List<IconPackInfo>>(emptyList())
     private val overlayGranted = mutableStateOf(true)
     private val notificationAccess = mutableStateOf(true)
@@ -89,6 +89,21 @@ class MainActivity : ComponentActivity() {
         // Re-render icons when the icon style, shape or pack changes.
         lifecycleScope.launch {
             snapshotFlow { prefs.iconConfig() }.drop(1).collect { refresh() }
+        }
+
+        // Markets and news: every 15 min while Lumen is on screen, and right away when settings change.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    runCatching { Feeds.refresh(prefs) }
+                    delay(15 * 60_000L)
+                }
+            }
+        }
+        lifecycleScope.launch {
+            snapshotFlow { listOf(prefs.showMarkets, prefs.tickers, prefs.showNews, prefs.newsSources) }
+                .drop(1)
+                .collect { runCatching { Feeds.refresh(prefs) } }
         }
 
         // Screen time: refreshed every minute while Mono is on screen.
@@ -282,6 +297,7 @@ class MainActivity : ComponentActivity() {
                 repo.load(config) to IconPacks.list(this@MainActivity)
             }
             apps.value = loaded
+            AppCache.apps = loaded
             iconPacks.value = packs
         }
     }

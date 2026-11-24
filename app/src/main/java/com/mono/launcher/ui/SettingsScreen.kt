@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import com.mono.launcher.ClockStyle
+import com.mono.launcher.Feeds
 import com.mono.launcher.FontChoice
 import com.mono.launcher.ScreenTime
 import com.mono.launcher.ThemeMode
@@ -86,6 +87,7 @@ fun SettingsScreen(
     /** Category whose name is being typed; -1 = a new one. */
     var namingCategory by remember { mutableStateOf<Int?>(null) }
     var limitApp by remember { mutableStateOf<AppEntry?>(null) }
+    var addingTicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val isLight = LocalPalette.current.isLight
 
@@ -238,6 +240,74 @@ fun SettingsScreen(
                 }
             }
 
+            Section("Bourse") {
+                Segmented(listOf(true, false), prefs.showMarkets, { if (it) "Affichée" else "Masquée" }, prefs::updateShowMarkets)
+                if (prefs.showMarkets) {
+                    Spacer(Modifier.height(12.dp))
+                    SubLabel("Touche pour ajouter / retirer")
+                    val presets = Feeds.MARKET_PRESETS
+                    val all = (presets.keys + prefs.tickers).distinct()
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        all.chunked(3).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { symbol ->
+                                    val on = symbol in prefs.tickers
+                                    Text(
+                                        Feeds.displayName(symbol),
+                                        color = if (on) OnAccent else White,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50))
+                                            .background(if (on) Accent else Raised)
+                                            .clickable { prefs.toggleTicker(symbol) }
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    ActionRow("Ajouter une action (ex. AAPL, MC.PA)", "+") { addingTicker = true }
+                    Hint("Les 3 premiers s'affichent sous l'horloge ; touche-les pour tout voir dans « Infos ». Symboles Yahoo Finance : .PA pour Paris (AIR.PA, MC.PA).")
+                }
+            }
+
+            Section("Actualités") {
+                Segmented(listOf(true, false), prefs.showNews, { if (it) "Affichées" else "Masquées" }, prefs::updateShowNews)
+                if (prefs.showNews) {
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Raised)
+                    ) {
+                        Feeds.NEWS_SOURCES.forEach { source ->
+                            val on = source.id in prefs.newsSources
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { prefs.toggleNewsSource(source.id) }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    source.name,
+                                    color = if (on) White else Muted,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Box(Modifier.size(8.dp).background(if (on) Accent else Black, CircleShape))
+                            }
+                        }
+                    }
+                    Hint("Le dernier titre s'affiche sous l'horloge. Astuce : Gestes › glisser vers « Infos » pour ouvrir bourse + actus d'un geste.")
+                }
+            }
+
             Section("Gestes") {
                 GestureRow("Glisser vers la droite", Gestures.label(prefs.swipeRight, apps)) { picking = Picker.SWIPE_RIGHT }
                 Spacer(Modifier.height(8.dp))
@@ -359,8 +429,12 @@ fun SettingsScreen(
             }
 
             Section("Écran verrouillé") {
-                Segmented(listOf(true, false), prefs.lockScreen, { if (it) "Favoris" else "Désactivé" }, onLockScreenChange)
-                Hint("Tes favoris s'affichent quand tu allumes l'écran. Toucher une app demande ton empreinte ou ton code.")
+                Segmented(listOf(true, false), prefs.lockScreen, { if (it) "Infos" else "Désactivé" }, onLockScreenChange)
+                Hint(
+                    "Quand tu allumes l'écran : horloge, batterie, résumé des notifications, bourse, actus et musique. " +
+                        "Pose ton doigt sur le capteur pour déverrouiller directement. " +
+                        "Glisser vers le haut ou toucher une app ouvre l'écran de déverrouillage d'Android (son style ne peut pas être changé)."
+                )
                 if (prefs.lockScreen && !overlayGranted) {
                     Spacer(Modifier.height(10.dp))
                     ActionRow("Autoriser l'affichage par-dessus les apps", "!", highlight = true, onClick = onRequestOverlay)
@@ -464,6 +538,18 @@ fun SettingsScreen(
                     namingCategory = null
                 },
                 onDismiss = { namingCategory = null },
+            )
+        }
+
+        if (addingTicker) {
+            NameDialog(
+                title = "Symbole boursier",
+                initial = "",
+                onConfirm = { symbol ->
+                    if (symbol.trim().uppercase() !in prefs.tickers) prefs.toggleTicker(symbol)
+                    addingTicker = false
+                },
+                onDismiss = { addingTicker = false },
             )
         }
 

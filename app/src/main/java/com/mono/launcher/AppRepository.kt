@@ -36,6 +36,15 @@ data class AppEntry(
     val letter: String = letterOf(label)
 }
 
+/**
+ * Last loaded app list, kept for the whole process so that a re-created home screen
+ * (e.g. after unlocking) shows the apps immediately instead of an empty frame.
+ */
+object AppCache {
+    @Volatile
+    var apps: List<AppEntry> = emptyList()
+}
+
 /** "#" first, then alphabetical in the phone's language. */
 fun sortApps(apps: List<AppEntry>): List<AppEntry> {
     val collator = Collator.getInstance()

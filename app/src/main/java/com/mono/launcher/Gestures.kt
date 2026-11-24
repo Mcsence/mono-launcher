@@ -16,9 +16,12 @@ object Gestures {
     const val NONE = ""
     const val CAMERA = "@camera"
     const val MESSAGES = "@messages"
+    /** Lumen's own "Infos" screen (markets + news), handled by the UI. */
+    const val INFOS = "@infos"
 
     fun label(target: String, apps: List<AppEntry>): String = when (target) {
         NONE -> "Rien"
+        INFOS -> "Infos (bourse + actus)"
         CAMERA -> "Appareil photo"
         MESSAGES -> "Messages"
         else -> apps.firstOrNull { it.key == target }?.label ?: "App introuvable"
@@ -26,7 +29,7 @@ object Gestures {
 
     fun run(context: Context, target: String, apps: List<AppEntry>, launch: (AppEntry) -> Unit) {
         when (target) {
-            NONE -> Unit
+            NONE, INFOS -> Unit
             CAMERA -> runCatching {
                 context.startActivity(
                     Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
